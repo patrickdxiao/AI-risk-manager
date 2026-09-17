@@ -1,4 +1,5 @@
-import type { InvestigationId, ProjectId, TaskId, UtcTimestamp } from "../primitives.js";
+import type { RiskType } from "./findingModel.js";
+import type { InvestigationId, ProjectId, RiskState, TaskId, UtcTimestamp } from "../primitives.js";
 
 export type InvestigationStatus = "requested" | "running" | "completed" | "failed";
 
@@ -82,16 +83,6 @@ export interface RuntimeUsageObservation {
   readonly estimatedCostUsd?: number;
 }
 
-type FindingState = "healthy" | "uncertain" | "at_risk" | "blocked";
-
-type FindingRiskKind =
-  | "stalled_work"
-  | "deadline_risk"
-  | "scope_drift"
-  | "dependency_blocker"
-  | "persistent_failure"
-  | "completion_unverified";
-
 interface FindingEvidenceCitation {
   readonly evidenceId: string;
   readonly note?: string;
@@ -99,8 +90,8 @@ interface FindingEvidenceCitation {
 
 export interface RuntimeFindingDraft {
   readonly taskId?: string;
-  readonly state: FindingState;
-  readonly riskKind?: FindingRiskKind;
+  readonly state: RiskState;
+  readonly riskType?: RiskType;
   readonly confidence: number;
   readonly rationale: string;
   readonly uncertainty?: string;

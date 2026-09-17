@@ -1,17 +1,9 @@
-import type {
-  PrivacyMode,
-  ProjectId,
-  RepositoryId,
-  SprintId,
-  TaskId,
-  UtcTimestamp,
-} from "../primitives.js";
+import type { PrivacyMode, ProjectId, SprintId, TaskId, UtcTimestamp } from "../primitives.js";
 export interface Project {
   readonly id: ProjectId;
   readonly name: string;
   readonly timezone: string;
   readonly privacyMode: PrivacyMode;
-  readonly activeRepositoryId?: RepositoryId;
   readonly createdAt: UtcTimestamp;
 }
 
@@ -20,7 +12,6 @@ export interface CreateProjectInput {
   readonly name: string;
   readonly timezone: string;
   readonly privacyMode?: PrivacyMode;
-  readonly activeRepositoryId?: RepositoryId;
   readonly createdAt: string;
 }
 
