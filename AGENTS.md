@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read `README.md`, then `design.md`, before making changes.
+Read `README.md`, then `docs/design.md`, before making changes.
 Build a local-first risk agent for one developer across multiple repositories, using OpenClaw for the runtime.
 
 Keep monitored repositories read-only and never upload or execute their code implicitly.

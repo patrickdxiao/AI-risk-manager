@@ -198,13 +198,13 @@ flowchart TD
   The trials did not execute repository code or tests, and model identity, token use, and cost are unknown.
   They do not verify OpenClaw integration or sandbox isolation.
 
-![Terminal output comparing two investigations, their evidence, and findings](docs/images/poc-model-trials.png)
+![Terminal output comparing two investigations, their evidence, and findings](images/poc-model-trials.png)
 
 - Scripted calls against the reduced fixture denied an out-of-scope repository, rejected a thirteenth call, and preserved the first answer while rejecting later submissions and reads.
   This verifies fixture controls, not model accuracy or product enforcement.
   The standalone sources, commands, logs, and SQLite ledgers remain in local Git backups.
 
-![Terminal output showing access denial, call limits, and the saved answer](docs/images/poc-blocker-tools.png)
+![Terminal output showing access denial, call limits, and the saved answer](images/poc-blocker-tools.png)
 
 ### 5. Validate and save findings in SQLite
 
@@ -238,7 +238,7 @@ flowchart TD
   Reopening a normally closed database does not test abrupt-crash recovery.
   Git identity checks, path races, permission handling, time limits, load, and automatic task updates remain unverified.
 
-![Terminal output showing discovered repositories and SQLite recovery](docs/images/poc-discovery-and-recovery.png)
+![Terminal output showing discovered repositories and SQLite recovery](images/poc-discovery-and-recovery.png)
 
 ### 6. Show what needs attention
 
