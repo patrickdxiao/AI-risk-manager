@@ -4,6 +4,7 @@ export type SprintId = string;
 export type TaskId = string;
 export type EvidenceEventId = string;
 export type EvidenceItemId = string;
+export type InvestigationId = string;
 export type UtcTimestamp = string;
 
 export type PrivacyMode = "metadata_only" | "selected_content";
