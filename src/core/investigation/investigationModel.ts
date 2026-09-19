@@ -1,4 +1,12 @@
-import type { InvestigationId, ProjectId, TaskId, UtcTimestamp } from "../primitives.js";
+import type { RiskType } from "./findingModel.js";
+import type {
+  InvestigationId,
+  RepositoryId,
+  RiskState,
+  SprintId,
+  TaskId,
+  UtcTimestamp,
+} from "../primitives.js";
 
 export type InvestigationStatus = "requested" | "running" | "completed" | "failed";
 
@@ -14,7 +22,8 @@ export interface InvestigationFailure {
 
 export interface Investigation {
   readonly id: InvestigationId;
-  readonly projectId: ProjectId;
+  readonly sprintId: SprintId;
+  /** When present, the task belongs to the investigation's sprint. */
   readonly taskId?: TaskId;
   readonly triggerId: string;
   readonly status: InvestigationStatus;
@@ -30,8 +39,7 @@ export interface Investigation {
 
 export interface InvestigationAttempt {
   readonly id: string;
-  readonly investigationId: string;
-  readonly projectId: string;
+  readonly investigationId: InvestigationId;
   readonly version: number;
   readonly status: "running" | "succeeded" | "failed" | "cancelled" | "expired";
   readonly startedAt: string;
@@ -57,7 +65,7 @@ export interface InvestigationAttempt {
   /** Immutable scope and admission state; secrets themselves are never persisted. */
   readonly authority?: {
     readonly credentialHash: string;
-    readonly repositoryIds: readonly string[];
+    readonly repositoryIds: readonly RepositoryId[];
     readonly planningDigest: string;
     readonly toolCalls: number;
     readonly reservedTokens: number;
@@ -82,16 +90,6 @@ export interface RuntimeUsageObservation {
   readonly estimatedCostUsd?: number;
 }
 
-type FindingState = "healthy" | "uncertain" | "at_risk" | "blocked";
-
-type FindingRiskKind =
-  | "stalled_work"
-  | "deadline_risk"
-  | "scope_drift"
-  | "dependency_blocker"
-  | "persistent_failure"
-  | "completion_unverified";
-
 interface FindingEvidenceCitation {
   readonly evidenceId: string;
   readonly note?: string;
@@ -99,8 +97,8 @@ interface FindingEvidenceCitation {
 
 export interface RuntimeFindingDraft {
   readonly taskId?: string;
-  readonly state: FindingState;
-  readonly riskKind?: FindingRiskKind;
+  readonly state: RiskState;
+  readonly riskType?: RiskType;
   readonly confidence: number;
   readonly rationale: string;
   readonly uncertainty?: string;
