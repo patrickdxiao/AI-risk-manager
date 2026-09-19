@@ -25,6 +25,24 @@ It's easy to lose track of blockers, at-risk work, and dependencies across multi
 
 ## Proposed design
 
+### Planning and access boundaries
+
+- One developer works directly with sprints and tasks.
+  There is no project entity, project selector, or implicit default project.
+  Task dependencies express related work without requiring a repository grouping.
+- Repositories are registered once and can provide evidence for tasks in any sprint.
+  A task can involve several repositories, and a repository can support several tasks.
+  Sprint dates are stored in UTC and displayed in the developer's local time zone.
+- An investigation targets a sprint and optionally one of its tasks.
+  Findings retain that sprint and optional task, and feedback refers directly to a finding.
+  Evidence retains its repository origin when applicable, plus optional sprint and task context, so Git observations can be reused across sprints.
+- Repository approval is separate from planning organization.
+  Each attempt retains an explicit repository allowlist, credential, deadline, and tool-call budget.
+  Evidence filters and task dependencies do not grant additional repository access.
+
+This revision defines these contracts only.
+The services, storage, and dashboard described below must implement this model in subsequent changes.
+
 ```mermaid
 flowchart TD
     UI["Browser dashboard"]
@@ -47,26 +65,26 @@ flowchart TD
 
 - The user opens the dashboard through a one-use sign-in link.
   During setup, they approve folders for discovery and the fields that may be shared with a provider.
-  The application discovers projects as described in step 3.
-- The user selects a project, creates a sprint, and enters its goal and start and end dates.
+  The application discovers repositories as described in step 3.
+- The user creates a sprint and enters its goal and start and end dates.
   When adding a task, they enter a title, points, and completion criteria.
   Task start and end dates default to the sprint dates and can be changed.
   An optional description gives the investigator context about the work.
 - The user can link prerequisite tasks and add sprint assumptions.
-  The API will reject dependency cycles and links between projects.
+  The API will reject dependency cycles, self-dependencies, and links to missing tasks.
+  Dependencies may refer to tasks in earlier sprints.
   Investigations use the saved plan without changing its goals or criteria.
 
 #### Store the plan
 
 - The browser sends JSON to the API, which checks access, required fields, positive integer points, and that each end date follows its start date.
-  Dates are stored as UTC ISO 8601 strings and displayed in the project's time zone.
+  Dates are stored as UTC ISO 8601 strings and displayed in the developer's local time zone.
   Criteria and assumptions are JSON string arrays, and a missing description is stored as null.
 - The core planning fields in `state.sqlite` will be:
 
 | Table               | Fields                                                                                                                    |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `projects`          | `id`, `name`, `timezone`                                                                                                  |
-| `sprints`           | `id`, `project_id`, `goal`, `start_at`, `end_at`, `review_cadence_minutes`, `assumptions_json`                            |
+| `sprints`           | `id`, `goal`, `start_at`, `end_at`, `review_cadence_minutes`, `assumptions_json`                                          |
 | `tasks`             | `id`, `sprint_id`, `title`, `description`, `start_at`, `end_at`, `points`, `state`, `completion_criteria_json`, `version` |
 | `task_dependencies` | `task_id`, `depends_on_task_id`                                                                                           |
 
@@ -87,13 +105,13 @@ flowchart TD
 - Saving a plan or selecting **Review now** will queue an investigation of saved evidence.
   Other triggers are:
 
-| Trigger          | Condition                                                                                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Manual resync    | The user selects **Resync** to refresh local Git snapshots for the project's approved repositories, then queue a review even if nothing changed. |
-| Git change       | A new commit or changed worktree snapshot is recorded.                                                                                           |
-| Repeated failure | At least two distinct failure observations are linked to the same unfinished task.                                                               |
-| Task deadline    | An unfinished task reaches its end date.                                                                                                         |
-| Scheduled review | The sprint's review interval has elapsed since its last review, or since sprint start for the first review.                                      |
+| Trigger          | Condition                                                                                                                                     |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Manual resync    | The user selects **Resync** to refresh local Git snapshots for the approved repositories, then queue a sprint review even if nothing changed. |
+| Git change       | A new commit or changed worktree snapshot is recorded.                                                                                        |
+| Repeated failure | At least two distinct failure observations are linked to the same unfinished task.                                                            |
+| Task deadline    | An unfinished task reaches its end date.                                                                                                      |
+| Scheduled review | The sprint's review interval has elapsed since its last review, or since sprint start for the first review.                                   |
 
 - Resync does not fetch, pull, or edit repository files.
   Its dashboard flow is **TBD**.
@@ -105,7 +123,7 @@ flowchart TD
 
 - `trigger_queue` stores the reason, evidence IDs, and a deduplication key for each review.
   Repeated observations will be combined into pending work, and `trigger_dispatches` tracks delivery, leases, and retries.
-- Dispatch currently starts through an API request and allows one execution per project.
+- Dispatch will start through an API request and initially allow one active investigation at a time for the local installation.
   Each attempt has an ownership version and an expiry time, so an expired worker cannot replace newer work.
   Only temporary failures qualify for retry.
 - [OpenClaw scheduling](https://docs.openclaw.ai/automation/cron-jobs) will start due work automatically.
@@ -127,14 +145,15 @@ flowchart TD
 
 #### Find and link repositories
 
-- The application will discover canonical roots within approved folders, group repositories into projects, and let users correct those groupings.
+- The application will discover canonical repository roots within approved folders and register them without a parent project or sprint.
   Scans will skip exclusions and symlinks, enforce size and time limits, and report incomplete coverage.
 - The read-only Git CLI adapter must verify repository identity before reads and reject external Git administration paths and filters.
   New paths do not inherit permission just because they replace an old path.
   Full discovery and these access checks are **TBD**.
 - Task matching will compare branches, diffs, commits, and checks against saved completion criteria.
-  Planned `project_repositories` and `task_repositories` tables will retain the links and supporting evidence.
-  Automatic matching and support beyond one repository per project are **TBD**.
+  A planned `task_repositories` table will retain links and supporting evidence for tasks spanning multiple repositories.
+  These links help select relevant evidence without granting repository access.
+  Automatic matching and durable task-to-repository links are **TBD**.
 
 #### Save observations before using them
 
@@ -154,12 +173,12 @@ flowchart TD
 - The [risk tool plugin](https://docs.openclaw.ai/plugins/building-plugins#registering-tools) uses `RiskApiClient` to call Fastify over authenticated HTTP.
   The service reads SQLite or captures Git evidence and returns it to the model.
 
-| Tool                 | Purpose                                                                       |
-| -------------------- | ----------------------------------------------------------------------------- |
-| `risk_get_context`   | Read available plan and task context, criteria, prior findings, and feedback. |
-| `risk_list_evidence` | List saved observations for a supplied project or task.                       |
-| `risk_get_evidence`  | Retrieve saved records by ID, including older citations.                      |
-| `risk_inspect_git`   | Capture fresh read-only Git observations and return saved evidence.           |
+| Tool                 | Purpose                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `risk_get_context`   | Read available plan and task context, criteria, prior findings, and feedback.              |
+| `risk_list_evidence` | List saved observations by sprint, task, or repository within the attempt's access limits. |
+| `risk_get_evidence`  | Retrieve saved records by ID, including older citations.                                   |
+| `risk_inspect_git`   | Capture fresh read-only Git observations and return saved evidence.                        |
 
 #### Let the model choose the next check
 
@@ -337,7 +356,7 @@ flowchart TD
 - Attempt versions and atomic receipts prevent duplicate acceptance after crashes or retries.
   Repeated model work can still add cost.
 - Bounded admission will reject excess manual requests while saved jobs retry temporary outages.
-  Affected projects keep older findings until reviews succeed.
+  Affected tasks and sprints keep older findings until reviews succeed.
 - Schema and citation checks reject invalid results before publication.
   Task-version checks will reject outdated decisions and preserve the last accepted state.
 

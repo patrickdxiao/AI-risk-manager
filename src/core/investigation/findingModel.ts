@@ -2,8 +2,8 @@ import type {
   EvidenceItemId,
   FindingId,
   InvestigationId,
-  ProjectId,
   RiskState,
+  SprintId,
   TaskId,
   UtcTimestamp,
 } from "../primitives.js";
@@ -24,7 +24,7 @@ export type RiskType =
 export interface Finding {
   readonly id: FindingId;
   readonly investigationId: InvestigationId;
-  readonly projectId: ProjectId;
+  readonly sprintId: SprintId;
   readonly taskId?: TaskId;
   readonly state: RiskState;
   readonly riskType?: RiskType;

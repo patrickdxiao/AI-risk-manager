@@ -1,25 +1,9 @@
-import type { PrivacyMode, ProjectId, SprintId, TaskId, UtcTimestamp } from "../primitives.js";
-export interface Project {
-  readonly id: ProjectId;
-  readonly name: string;
-  readonly timezone: string;
-  readonly privacyMode: PrivacyMode;
-  readonly createdAt: UtcTimestamp;
-}
-
-export interface CreateProjectInput {
-  readonly id: ProjectId;
-  readonly name: string;
-  readonly timezone: string;
-  readonly privacyMode?: PrivacyMode;
-  readonly createdAt: string;
-}
+import type { SprintId, TaskId, UtcTimestamp } from "../primitives.js";
 
 export type SprintState = "planned" | "active" | "completed";
 
 export interface Sprint {
   readonly id: SprintId;
-  readonly projectId: ProjectId;
   readonly startAt: UtcTimestamp;
   readonly endAt: UtcTimestamp;
   readonly goal?: string;
@@ -32,7 +16,6 @@ export interface Sprint {
 
 export interface CreateSprintInput {
   readonly id: SprintId;
-  readonly projectId: ProjectId;
   readonly startAt: string;
   readonly endAt: string;
   readonly goal?: string;

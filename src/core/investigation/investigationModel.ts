@@ -1,5 +1,12 @@
 import type { RiskType } from "./findingModel.js";
-import type { InvestigationId, ProjectId, RiskState, TaskId, UtcTimestamp } from "../primitives.js";
+import type {
+  InvestigationId,
+  RepositoryId,
+  RiskState,
+  SprintId,
+  TaskId,
+  UtcTimestamp,
+} from "../primitives.js";
 
 export type InvestigationStatus = "requested" | "running" | "completed" | "failed";
 
@@ -15,7 +22,8 @@ export interface InvestigationFailure {
 
 export interface Investigation {
   readonly id: InvestigationId;
-  readonly projectId: ProjectId;
+  readonly sprintId: SprintId;
+  /** When present, the task belongs to the investigation's sprint. */
   readonly taskId?: TaskId;
   readonly triggerId: string;
   readonly status: InvestigationStatus;
@@ -31,8 +39,7 @@ export interface Investigation {
 
 export interface InvestigationAttempt {
   readonly id: string;
-  readonly investigationId: string;
-  readonly projectId: string;
+  readonly investigationId: InvestigationId;
   readonly version: number;
   readonly status: "running" | "succeeded" | "failed" | "cancelled" | "expired";
   readonly startedAt: string;
@@ -58,7 +65,7 @@ export interface InvestigationAttempt {
   /** Immutable scope and admission state; secrets themselves are never persisted. */
   readonly authority?: {
     readonly credentialHash: string;
-    readonly repositoryIds: readonly string[];
+    readonly repositoryIds: readonly RepositoryId[];
     readonly planningDigest: string;
     readonly toolCalls: number;
     readonly reservedTokens: number;

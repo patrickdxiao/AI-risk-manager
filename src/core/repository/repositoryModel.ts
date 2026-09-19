@@ -1,14 +1,7 @@
 import type { EvidenceItem } from "../evidence/evidenceModel.js";
-import type {
-  EvidenceEventId,
-  EvidenceItemId,
-  ProjectId,
-  RepositoryId,
-  UtcTimestamp,
-} from "../primitives.js";
+import type { EvidenceEventId, EvidenceItemId, RepositoryId, UtcTimestamp } from "../primitives.js";
 export interface Repository {
   readonly id: RepositoryId;
-  readonly projectId: ProjectId;
   readonly approvedRoot?: string;
   readonly canonicalPath: string;
   readonly gitRoot: string;
