@@ -3,8 +3,8 @@ import type {
   EvidenceItemId,
   JsonValue,
   PrivacyMode,
-  ProjectId,
   RepositoryId,
+  SprintId,
   TaskId,
   UtcTimestamp,
 } from "../primitives.js";
@@ -30,7 +30,9 @@ export interface SelectedEvidenceContent {
 export interface EvidenceItem {
   readonly id: EvidenceItemId;
   readonly eventId: EvidenceEventId;
-  readonly projectId: ProjectId;
+  /** Repository provenance is independent of the sprint or task using the evidence. */
+  readonly repositoryId?: RepositoryId;
+  readonly sprintId?: SprintId;
   readonly taskId?: TaskId;
   readonly source: EvidenceSource;
   readonly kind: EvidenceKind;
@@ -48,7 +50,8 @@ export interface CreateEvidenceItemInput extends Omit<EvidenceItem, "occurredAt"
 }
 
 export interface EvidenceQuery {
-  readonly projectId: ProjectId;
+  /** Retrieval filters do not grant access beyond the attempt's approved repositories. */
+  readonly sprintId?: SprintId;
   readonly taskId?: TaskId | null;
   readonly repositoryId?: RepositoryId;
   readonly source?: EvidenceSource;

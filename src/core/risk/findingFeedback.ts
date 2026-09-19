@@ -1,4 +1,4 @@
-import type { FindingFeedbackId, FindingId, ProjectId, UtcTimestamp } from "../primitives.js";
+import type { FindingFeedbackId, FindingId, UtcTimestamp } from "../primitives.js";
 
 export type FindingFeedbackKind = "confirm" | "dismiss" | "resolve" | "correct";
 
@@ -9,7 +9,6 @@ interface FindingFeedbackCorrection {
 export interface FindingFeedback {
   readonly id: FindingFeedbackId;
   readonly findingId: FindingId;
-  readonly projectId: ProjectId;
   readonly kind: FindingFeedbackKind;
   readonly note?: string;
   readonly correction?: FindingFeedbackCorrection;
@@ -19,7 +18,6 @@ export interface FindingFeedback {
 }
 
 export interface SubmitFindingFeedbackInput {
-  readonly projectId: ProjectId;
   readonly findingId: FindingId;
   readonly kind: FindingFeedbackKind;
   readonly note?: string;

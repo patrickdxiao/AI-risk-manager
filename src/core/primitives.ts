@@ -1,4 +1,3 @@
-export type ProjectId = string;
 export type RepositoryId = string;
 export type SprintId = string;
 export type TaskId = string;
