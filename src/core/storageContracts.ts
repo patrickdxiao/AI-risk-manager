@@ -109,6 +109,8 @@ export interface InvestigationActivity {
 
 export interface InvestigationStore {
   listAttemptsSince(since: UtcTimestamp): Promise<readonly InvestigationAttempt[]>;
+  /** Running attempts or attempts without totalTokens, regardless of age, still reserve budget. */
+  listUnsettledAttempts(): Promise<readonly InvestigationAttempt[]>;
   findRecentBySprintId(
     sprintId: SprintId,
     now: UtcTimestamp,

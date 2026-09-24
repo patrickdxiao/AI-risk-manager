@@ -21,7 +21,16 @@ export type ApplicationErrorCode =
   | "task_not_found"
   | "task_version_conflict"
   | "finding_not_found"
-  | "finding_feedback_conflict";
+  | "finding_feedback_conflict"
+  | "investigation_not_found"
+  | "task_scope_mismatch"
+  | "evidence_not_found"
+  | "evidence_scope_mismatch"
+  | "attempt_unauthorized"
+  | "attempt_scope_revoked"
+  | "execution_lease_lost"
+  | "tool_budget_exhausted"
+  | "investigation_budget_exhausted";
 
 export class ApplicationError extends Error {
   override readonly name = "ApplicationError";
