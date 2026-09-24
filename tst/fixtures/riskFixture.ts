@@ -1,3 +1,5 @@
+import { planningDigest } from "../../src/core/investigation/evidenceScope.js";
+import type { Investigation } from "../../src/core/investigation/investigationModel.js";
 import { createEvidenceItem, type EvidenceItem } from "../../src/core/evidence/evidenceModel.js";
 import { createFinding, type Finding } from "../../src/core/investigation/findingModel.js";
 import {
@@ -129,6 +131,33 @@ export function riskFixture(
       item,
     ]),
   );
+  const origins = new Map<string, Investigation>(
+    [...findings.values()]
+      .filter((item) => item.state === "healthy")
+      .map((item) => [
+        item.investigationId,
+        {
+          id: item.investigationId,
+          sprintId: item.sprintId,
+          ...(item.taskId === undefined ? {} : { taskId: item.taskId }),
+          status: "completed",
+          triggerId: "seed",
+          requestedAt: before,
+          completedAt: item.createdAt,
+          executionAttemptId: `${item.investigationId}:attempt`,
+        },
+      ]),
+  );
+  const initialDigests = planning.store.execute(
+    async (context) =>
+      new Map(
+        await Promise.all(
+          [...origins.values()].map(
+            async (origin) => [origin.id, await planningDigest(context, origin)] as const,
+          ),
+        ),
+      ),
+  );
   const observations = new Map((seed.evidence ?? [evidence]).map((item) => [item.id, item]));
   const repositories = new Map((seed.repositories ?? [repository]).map((item) => [item.id, item]));
   let feedback = [...(seed.feedback ?? [])];
@@ -153,6 +182,30 @@ export function riskFixture(
             findById: (id) => Promise.resolve(findings.get(id)),
           }),
           investigations: testPort<TransactionContext["investigations"]>({
+            findById: (id) => Promise.resolve(origins.get(id)),
+            findAttemptById: async (id) => {
+              const origin = [...origins.values()].find((item) => item.executionAttemptId === id);
+              if (origin === undefined) return undefined;
+              return {
+                id,
+                investigationId: origin.id,
+                status: "succeeded",
+                version: 1,
+                startedAt: before,
+                leaseUntil: reviewedAt,
+                timeoutMs: 60_000,
+                queueWaitMs: 0,
+                promptVersion: "1",
+                resultSchemaVersion: "1",
+                authority: {
+                  credentialHash: "seed",
+                  repositoryIds: [],
+                  planningDigest: (await initialDigests).get(origin.id) ?? "missing",
+                  toolCalls: 0,
+                  reservedTokens: 20_000,
+                },
+              };
+            },
             findLatestSubmittedResult: (sprintId, taskId) =>
               Promise.resolve(
                 receipts

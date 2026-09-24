@@ -9,7 +9,11 @@ import {
   type ClockPort,
 } from "../primitives.js";
 import type { TransactionContext, UnitOfWorkPort } from "../storageContracts.js";
-import { assertExecutionOwnership, authorizeAttempt } from "./attemptAuthority.js";
+import {
+  assertExecutionOwnership,
+  authorizeAttempt,
+  canReadAcceptedInvestigation,
+} from "./attemptAuthority.js";
 import { evidenceInScope, selectPlanningContext, type PlanningContext } from "./evidenceScope.js";
 import type { Finding, FindingEvidence } from "./findingModel.js";
 import type { FindingFeedback } from "../risk/findingFeedback.js";
@@ -172,17 +176,8 @@ async function previousReviewContext(
       id === latest?.investigation.id
         ? latest.investigation
         : await store.investigations.findById(id);
-    const priorId = origin?.executionAttemptId;
-    const prior =
-      priorId === undefined ? undefined : await store.investigations.findAttemptById(priorId);
     const permitted =
-      origin?.id === id &&
-      origin.status === "completed" &&
-      prior?.id === priorId &&
-      prior?.status === "succeeded" &&
-      prior.investigationId === id &&
-      prior.authority !== undefined &&
-      prior.authority.repositoryIds.every((repositoryId) => repositoryIds.includes(repositoryId));
+      origin?.id === id && (await canReadAcceptedInvestigation(store, origin, repositoryIds));
     origins.set(id, permitted);
     return permitted;
   }

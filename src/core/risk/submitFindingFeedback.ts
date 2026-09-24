@@ -54,21 +54,18 @@ export class SubmitFindingFeedback {
       // An old finding stays auditable without replacing a newer assessment.
       if (submitted?.findings.some((item) => item.id === finding.id) === true) {
         const assessment = await readCurrentRiskAssessment(context, submitted);
-        if (assessment !== undefined) {
-          const previous = await context.risks.findLatestSnapshot(finding.sprintId, finding.taskId);
-          const records = createRiskAssessmentRecords({
-            sprintId: finding.sprintId,
-            ...(finding.taskId === undefined ? {} : { taskId: finding.taskId }),
-            assessment,
-            ...(previous === undefined ? {} : { previous }),
-            cause: { type: "feedback", feedbackId: feedback.id },
-            now: feedback.createdAt,
-            ids: this.ids,
-          });
-          await context.risks.addSnapshot(records.snapshot);
-          if (records.transition !== undefined)
-            await context.risks.addTransition(records.transition);
-        }
+        const previous = await context.risks.findLatestSnapshot(finding.sprintId, finding.taskId);
+        const records = createRiskAssessmentRecords({
+          sprintId: finding.sprintId,
+          ...(finding.taskId === undefined ? {} : { taskId: finding.taskId }),
+          assessment,
+          ...(previous === undefined ? {} : { previous }),
+          cause: { type: "feedback", feedbackId: feedback.id },
+          now: feedback.createdAt,
+          ids: this.ids,
+        });
+        await context.risks.addSnapshot(records.snapshot);
+        if (records.transition !== undefined) await context.risks.addTransition(records.transition);
       }
       return Object.freeze({ status: "recorded", feedback });
     });

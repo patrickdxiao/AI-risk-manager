@@ -64,6 +64,20 @@ export function createFindingEvidence(input: FindingEvidence): FindingEvidence {
   });
 }
 
+/** Validate bounded enum values before callers serialize an untrusted runtime answer. */
+export function validateFindingRisk(state: RiskState, riskType?: RiskType): void {
+  if (!["healthy", "uncertain", "at_risk", "blocked"].includes(state))
+    throw new DomainInvariantError("invalid_value", "Risk state is invalid", "state");
+  if (riskType !== undefined && !RISK_TYPES.includes(riskType))
+    throw new DomainInvariantError("invalid_value", "Risk type is invalid", "riskType");
+  if ((state === "at_risk" || state === "blocked") && riskType === undefined)
+    throw new DomainInvariantError(
+      "required",
+      "At-risk and blocked findings require a risk type",
+      "riskType",
+    );
+}
+
 /** The caller supplies only permitted stored evidence; citations do not prove a conclusion. */
 export function createFinding(
   input: CreateFindingInput,
@@ -71,16 +85,7 @@ export function createFinding(
 ): { readonly finding: Finding; readonly citations: readonly FindingEvidence[] } {
   const id = requireNonBlank(input.id, "id", 200);
   const createdAt = requireUtcTimestamp(input.createdAt, "createdAt");
-  if (!["healthy", "uncertain", "at_risk", "blocked"].includes(input.state))
-    throw new DomainInvariantError("invalid_value", "Risk state is invalid", "state");
-  if (input.riskType !== undefined && !RISK_TYPES.includes(input.riskType))
-    throw new DomainInvariantError("invalid_value", "Risk type is invalid", "riskType");
-  if ((input.state === "at_risk" || input.state === "blocked") && input.riskType === undefined)
-    throw new DomainInvariantError(
-      "required",
-      "At-risk and blocked findings require a risk type",
-      "riskType",
-    );
+  validateFindingRisk(input.state, input.riskType);
   const text: Partial<
     Record<"uncertainty" | "recommendedUserAction" | "nextCheckCondition", string>
   > = {};
@@ -120,7 +125,11 @@ export function createFinding(
     );
   const seen = new Set<EvidenceItemId>();
   const citations = input.evidenceCitations.map((citation) => {
-    const result = createFindingEvidence({ ...citation, findingId: id });
+    const result = createFindingEvidence({
+      findingId: id,
+      evidenceId: citation.evidenceId,
+      ...(citation.note === undefined ? {} : { note: citation.note }),
+    });
     if (seen.has(result.evidenceId))
       throw new DomainInvariantError(
         "duplicate_reference",

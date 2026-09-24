@@ -36,7 +36,10 @@ export type ApplicationErrorCode =
   | "tool_budget_exhausted"
   | "investigation_budget_exhausted"
   | "repository_not_found"
-  | "investigation_queue_full";
+  | "investigation_queue_full"
+  | "investigation_result_conflict"
+  | "investigation_input_changed"
+  | "invalid_coverage";
 
 export class ApplicationError extends Error {
   override readonly name = "ApplicationError";

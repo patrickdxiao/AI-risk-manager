@@ -72,7 +72,7 @@ export function completeInvestigation(
   requireStatus(value, ["running"]);
   const completedAt = requireUtcTimestamp(input.completedAt, "completedAt");
   requireTimestampOrder(value.startedAt ?? value.requestedAt, completedAt, "completedAt");
-  const usage = normalizeUsage(input.usage);
+  const usage = normalizeInvestigationUsage(input.usage);
   return Object.freeze({
     ...withoutExecutionLease(value),
     status: "completed",
@@ -103,7 +103,7 @@ export function failInvestigation(
     message: requireNonBlank(input.failure.message, "failure.message"),
     retryable: input.failure.retryable,
   });
-  const usage = normalizeUsage(input.usage);
+  const usage = normalizeInvestigationUsage(input.usage);
   return Object.freeze({
     ...withoutExecutionLease(value),
     status: "failed",
@@ -189,7 +189,9 @@ function requireStatus(value: Investigation, allowed: readonly InvestigationStat
 }
 
 /** Validate only reported values; absent counters and costs remain unknown. */
-function normalizeUsage(usage: InvestigationUsage | undefined): InvestigationUsage | undefined {
+export function normalizeInvestigationUsage(
+  usage: InvestigationUsage | undefined,
+): InvestigationUsage | undefined {
   if (usage === undefined) return undefined;
   const result: Partial<Record<keyof InvestigationUsage, number>> = {};
   for (const field of ["inputTokens", "outputTokens", "totalTokens"] as const)
@@ -269,24 +271,14 @@ export interface RuntimeFindingDraft {
 }
 
 export interface InvestigationStructuredResult {
-  /** Absent only for existing scripted clients; external result contracts require version 1. */
-  readonly version?: "1";
+  readonly version: "1";
   readonly findings: readonly RuntimeFindingDraft[];
-  readonly needsConfirmation?: boolean;
   readonly examinedFindingIds?: readonly string[];
   readonly question?: {
     readonly question: string;
     readonly reason: "scope" | "completion_criteria";
     readonly taskId?: string;
   };
-  readonly completedTasks?: readonly {
-    readonly taskId: string;
-    readonly version: number;
-    readonly criteriaEvidence: readonly {
-      readonly criterion: string;
-      readonly evidenceIds: readonly string[];
-    }[];
-  }[];
 }
 
 export interface InvestigationRuntimeRun {
