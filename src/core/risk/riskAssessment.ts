@@ -1,3 +1,4 @@
+import { planningDigest } from "../investigation/evidenceScope.js";
 import { requiresRepositoryId } from "../evidence/evidenceModel.js";
 import {
   getUserTaskTransitions,
@@ -35,6 +36,7 @@ export interface ReadableRiskAssessment extends CurrentRiskAssessment {
   readonly assessedAt: UtcTimestamp;
   readonly evidenceIds: readonly string[];
   readonly unavailableEvidenceIds: readonly string[];
+  readonly coverageGap?: string;
 }
 
 /** Select the newest applicable receipt; an unexamined task retains its own assessment. */
@@ -76,21 +78,41 @@ export async function readCurrentFindings(
 }
 
 /** Read accepted local data without impersonating a model attempt or inferring completion. */
+export function readCurrentRiskAssessment(
+  context: TransactionContext,
+  submitted: SubmittedInvestigationResult,
+  planningChecks?: Map<string, Promise<boolean>>,
+): Promise<ReadableRiskAssessment>;
+export function readCurrentRiskAssessment(
+  context: TransactionContext,
+  submitted: SubmittedInvestigationResult | undefined,
+  planningChecks?: Map<string, Promise<boolean>>,
+): Promise<ReadableRiskAssessment | undefined>;
 export async function readCurrentRiskAssessment(
   context: TransactionContext,
   submitted: SubmittedInvestigationResult | undefined,
+  planningChecks = new Map<string, Promise<boolean>>(),
 ): Promise<ReadableRiskAssessment | undefined> {
   if (submitted === undefined) return undefined;
   const feedback = new Map<string, readonly FindingFeedback[]>();
-  let assessedAt = submitted.investigation.completedAt ?? submitted.investigation.requestedAt;
   for (const finding of submitted.findings) {
     const history = await context.findingFeedback.findCurrentByFindingId(finding.id);
     feedback.set(finding.id, history);
-    for (const item of history)
-      if (item.findingId === finding.id && Date.parse(item.createdAt) > Date.parse(assessedAt))
-        assessedAt = item.createdAt;
   }
   const assessment = projectCurrentRisk(submitted.findings, feedback);
+  let assessedAt =
+    assessment.finding !== undefined &&
+    submitted.retainedFindingIds?.includes(assessment.finding.id) === true
+      ? assessment.finding.createdAt
+      : (submitted.investigation.completedAt ?? submitted.investigation.requestedAt);
+  for (const [findingId, history] of feedback)
+    for (const item of history)
+      if (
+        item.findingId === findingId &&
+        (assessment.finding === undefined || findingId === assessment.finding.id) &&
+        Date.parse(item.createdAt) > Date.parse(assessedAt)
+      )
+        assessedAt = item.createdAt;
   const evidenceIds: string[] = [];
   const unavailableEvidenceIds: string[] = [];
   const cited = new Set(
@@ -107,10 +129,20 @@ export async function readCurrentRiskAssessment(
         : (await context.repositories.findById(item.repositoryId))?.id === item.repositoryId);
     (available ? evidenceIds : unavailableEvidenceIds).push(id);
   }
+  let stalePlan = false;
+  if (assessment.state === "healthy" && assessment.finding !== undefined) {
+    const originId = assessment.finding.investigationId;
+    let matches = planningChecks.get(originId);
+    if (matches === undefined) {
+      matches = matchesAcceptedPlan(context, originId);
+      planningChecks.set(originId, matches);
+    }
+    stalePlan = !(await matches);
+  }
   // Lost support cannot certify health; retain a previously reported blocker alongside its gap.
   const state =
     assessment.state === "healthy" &&
-    (unavailableEvidenceIds.length > 0 || evidenceIds.length === 0)
+    (stalePlan || unavailableEvidenceIds.length > 0 || evidenceIds.length === 0)
       ? "uncertain"
       : assessment.state;
   return Object.freeze({
@@ -119,7 +151,41 @@ export async function readCurrentRiskAssessment(
     assessedAt,
     evidenceIds: Object.freeze(evidenceIds),
     unavailableEvidenceIds: Object.freeze(unavailableEvidenceIds),
+    ...(stalePlan
+      ? {
+          coverageGap:
+            "The saved healthy finding does not verify the current plan; review is required.",
+        }
+      : {}),
   });
+}
+
+/** Compare the original successful input snapshot, including prerequisite versions. */
+async function matchesAcceptedPlan(
+  context: TransactionContext,
+  originId: string,
+): Promise<boolean> {
+  const origin = await context.investigations.findById(originId);
+  if (
+    origin?.id !== originId ||
+    origin.status !== "completed" ||
+    origin.executionAttemptId === undefined
+  )
+    return false;
+  const attempt = await context.investigations.findAttemptById(origin.executionAttemptId);
+  if (
+    attempt?.id !== origin.executionAttemptId ||
+    attempt.status !== "succeeded" ||
+    attempt.investigationId !== originId ||
+    attempt.authority === undefined
+  )
+    return false;
+  try {
+    return attempt.authority.planningDigest === (await planningDigest(context, origin));
+  } catch (error: unknown) {
+    if (error instanceof ApplicationError || error instanceof DomainInvariantError) return false;
+    throw error;
+  }
 }
 
 /** Record an assessment on every accepted update, and a transition only when its state changes. */
@@ -220,10 +286,12 @@ export class GetSprintOverview {
         if (task.state !== "done")
           for (const id of task.dependencyIds) dependents.set(id, (dependents.get(id) ?? 0) + 1);
       const rows: SprintOverviewTask[] = [];
+      const planningChecks = new Map<string, Promise<boolean>>();
       for (const task of tasks.values()) {
         const assessment = await readCurrentRiskAssessment(
           context,
           await readCurrentFindings(context, task.sprintId, task.id),
+          planningChecks,
         );
         rows.push(
           Object.freeze({
@@ -250,6 +318,7 @@ export class GetSprintOverview {
       const sprintRisk = await readCurrentRiskAssessment(
         context,
         await readCurrentFindings(context, sprintId),
+        planningChecks,
       );
       return Object.freeze({
         sprint,

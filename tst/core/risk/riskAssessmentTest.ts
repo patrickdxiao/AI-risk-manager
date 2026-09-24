@@ -309,3 +309,30 @@ describe("risk records", () => {
     ).toThrow("chronological");
   });
 });
+
+it("does not refresh a retained blocker's age when feedback corrects a different finding", async () => {
+  const old = finding("old-blocker");
+  const fresh = finding("fresh-healthy", { state: "healthy", createdAt: now });
+  const later = "2026-09-24T03:00:00.000Z";
+  const fixture = riskFixture({
+    receipts: [
+      { ...receipt("partial", [old, fresh], { completedAt: now }), retainedFindingIds: [old.id] },
+    ],
+    feedback: [
+      createFindingFeedback({
+        id: "correction",
+        findingId: fresh.id,
+        kind: "correct",
+        correction: { statement: "A more precise healthy explanation" },
+        actor: "developer",
+        source: "dashboard",
+        createdAt: later,
+      }),
+    ],
+  });
+  expect(await read(fixture, "task")).toMatchObject({
+    state: "blocked",
+    finding: old,
+    assessedAt: reviewedAt,
+  });
+});

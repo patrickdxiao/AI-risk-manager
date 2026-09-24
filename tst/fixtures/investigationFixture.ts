@@ -5,6 +5,8 @@ import type {
 } from "../../src/core/investigation/investigationModel.js";
 import type { Sprint, Task } from "../../src/core/planning/planningModel.js";
 import type { Repository } from "../../src/core/repository/repositoryModel.js";
+import type { Finding, FindingEvidence } from "../../src/core/investigation/findingModel.js";
+import type { RiskSnapshot, RiskTransition } from "../../src/core/risk/riskModel.js";
 import type { FindingFeedback } from "../../src/core/risk/findingFeedback.js";
 import type {
   SubmittedInvestigationResult,
@@ -25,6 +27,8 @@ export function investigationFixture(
     dispatches?: readonly TriggerDispatch[];
     receipts?: readonly SubmittedInvestigationResult[];
     feedback?: readonly FindingFeedback[];
+    findings?: readonly Finding[];
+    snapshots?: readonly RiskSnapshot[];
     failFenced?: boolean;
   } = {},
 ) {
@@ -36,6 +40,16 @@ export function investigationFixture(
   const repositories = new Map(seed.repositories?.map((item) => [item.id, item]));
   const evidence = new Map(seed.evidence?.map((item) => [item.id, item]));
   const evidenceReads: string[] = [];
+  let receipts = new Map(seed.receipts?.map((item) => [item.investigation.id, item]));
+  let findings = new Map(
+    [...(seed.findings ?? []), ...(seed.receipts ?? []).flatMap((item) => item.findings)].map(
+      (item) => [item.id, item],
+    ),
+  );
+  let citations: FindingEvidence[] = [];
+  let snapshots = [...(seed.snapshots ?? [])],
+    transitions: RiskTransition[] = [];
+  let failReceipt = false;
   let previous: Promise<unknown> = Promise.resolve();
   function port<K extends keyof TransactionContext>(
     name: K,
@@ -53,7 +67,12 @@ export function investigationFixture(
       const run = previous.then(async () => {
         const nextInvestigations = new Map(investigations),
           nextAttempts = new Map(attempts),
-          nextDispatches = new Map(dispatches);
+          nextDispatches = new Map(dispatches),
+          nextReceipts = new Map(receipts),
+          nextFindings = new Map(findings);
+        const nextCitations = [...citations],
+          nextSnapshots = [...snapshots],
+          nextTransitions = [...transitions];
         const context = new Proxy(
           {
             planning: port("planning", {
@@ -98,12 +117,25 @@ export function investigationFixture(
               },
               findLatestSubmittedResult: (sprintId, taskId) =>
                 Promise.resolve(
-                  seed.receipts?.find(
-                    (item) =>
-                      item.investigation.sprintId === sprintId &&
-                      item.investigation.taskId === taskId,
-                  ),
+                  [...nextReceipts.values()]
+                    .filter(
+                      (item) =>
+                        item.investigation.sprintId === sprintId &&
+                        item.investigation.taskId === taskId,
+                    )
+                    .sort(
+                      (left, right) =>
+                        (right.investigation.completedAt ?? "").localeCompare(
+                          left.investigation.completedAt ?? "",
+                        ) || right.investigation.id.localeCompare(left.investigation.id),
+                    )[0],
                 ),
+              findSubmittedResult: (id) => Promise.resolve(nextReceipts.get(id)),
+              saveSubmittedResult: (item) => {
+                if (failReceipt) throw new Error("receipt write failed");
+                nextReceipts.set(item.investigation.id, item);
+                return Promise.resolve();
+              },
               findRecentBySprintId: (id, _now, limit) =>
                 Promise.resolve(
                   [...nextInvestigations.values()]
@@ -119,6 +151,34 @@ export function investigationFixture(
                       };
                     }),
                 ),
+            }),
+            findings: port("findings", {
+              findById: (id) => Promise.resolve(nextFindings.get(id)),
+              add: (item) => {
+                if (nextFindings.has(item.id)) throw new Error("duplicate finding");
+                nextFindings.set(item.id, item);
+                return Promise.resolve();
+              },
+              addEvidence: (item) => {
+                nextCitations.push(item);
+                return Promise.resolve();
+              },
+            }),
+            risks: port("risks", {
+              findLatestSnapshot: (sprintId, taskId) =>
+                Promise.resolve(
+                  nextSnapshots
+                    .filter((item) => item.sprintId === sprintId && item.taskId === taskId)
+                    .at(-1),
+                ),
+              addSnapshot: (item) => {
+                nextSnapshots.push(item);
+                return Promise.resolve();
+              },
+              addTransition: (item) => {
+                nextTransitions.push(item);
+                return Promise.resolve();
+              },
             }),
             evidence: port("evidence", {
               findById: (id) => {
@@ -175,6 +235,11 @@ export function investigationFixture(
         investigations = nextInvestigations;
         attempts = nextAttempts;
         dispatches = nextDispatches;
+        receipts = nextReceipts;
+        findings = nextFindings;
+        citations = nextCitations;
+        snapshots = nextSnapshots;
+        transitions = nextTransitions;
         return result;
       });
       previous = run.catch(() => undefined);
@@ -185,9 +250,19 @@ export function investigationFixture(
     store,
     evidenceReads,
     tasks,
+    sprints,
+    evidence,
     repositories,
     investigations: () => [...investigations.values()],
     attempts: () => [...attempts.values()],
     dispatches: () => [...dispatches.values()],
+    receipts: () => [...receipts.values()],
+    findings: () => [...findings.values()],
+    citations: () => citations,
+    snapshots: () => snapshots,
+    transitions: () => transitions,
+    failReceiptWrites(value: boolean) {
+      failReceipt = value;
+    },
   };
 }

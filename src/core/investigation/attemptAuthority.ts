@@ -113,20 +113,15 @@ export async function assertRepositoryScope(
       );
 }
 
-/** Authenticate and charge the call in the same transaction as the protected operation. */
-export async function authorizeAttempt(
-  store: TransactionContext,
-  token: string,
-  now: string,
-  consumeCall = true,
-) {
+/** Check credential identity only; callers separately enforce active ownership or receipt access. */
+export async function authenticateAttempt(store: TransactionContext, token: string) {
   const parts = /^risk_attempt\.([A-Za-z0-9_-]{1,1024})\.([A-Za-z0-9_-]{43})$/u.exec(token);
   if (parts?.[1] === undefined) throw unauthorized();
   const id = Buffer.from(parts[1], "base64url").toString("utf8");
   const attempt = await store.investigations.findAttemptById(id);
   const authority = attempt?.authority;
   if (
-    attempt === undefined ||
+    attempt?.id !== id ||
     authority === undefined ||
     !/^[a-f0-9]{64}$/u.test(authority.credentialHash) ||
     !timingSafeEqual(
@@ -136,17 +131,31 @@ export async function authorizeAttempt(
   )
     throw unauthorized();
   const investigation = await store.investigations.findById(attempt.investigationId);
-  if (investigation === undefined) throw unauthorized();
-  await assertExecutionOwnership(store, investigation, attempt.id, now);
-  await assertRepositoryScope(store, attempt);
-  requireInteger(authority.toolCalls, "toolCalls", 0);
-  const authorized = Object.freeze({
-    ...attempt,
-    authority: Object.freeze({
-      ...authority,
-      repositoryIds: Object.freeze([...authority.repositoryIds]),
+  if (investigation?.id !== attempt.investigationId) throw unauthorized();
+  return Object.freeze({
+    investigation,
+    attempt: Object.freeze({
+      ...attempt,
+      authority: Object.freeze({
+        ...authority,
+        repositoryIds: Object.freeze([...authority.repositoryIds]),
+      }),
     }),
   });
+}
+
+/** Authenticate and charge the call in the same transaction as the protected operation. */
+export async function authorizeAttempt(
+  store: TransactionContext,
+  token: string,
+  now: string,
+  consumeCall = true,
+) {
+  const { investigation, attempt: authorized } = await authenticateAttempt(store, token);
+  await assertExecutionOwnership(store, investigation, authorized.id, now);
+  await assertRepositoryScope(store, authorized);
+  const authority = authorized.authority;
+  requireInteger(authority.toolCalls, "toolCalls", 0);
   if (!consumeCall) return Object.freeze({ investigation, attempt: authorized });
   if (authority.toolCalls >= ATTEMPT_TOOL_LIMIT)
     throw new ApplicationError(
@@ -160,6 +169,23 @@ export async function authorizeAttempt(
   });
   await store.investigations.saveAttempt(updated);
   return Object.freeze({ investigation, attempt: updated });
+}
+
+/** Historical text is readable only under the permissions of its actual successful origin. */
+export async function canReadAcceptedInvestigation(
+  store: TransactionContext,
+  origin: Investigation | undefined,
+  repositoryIds: readonly string[],
+): Promise<boolean> {
+  if (origin?.status !== "completed" || origin.executionAttemptId === undefined) return false;
+  const attempt = await store.investigations.findAttemptById(origin.executionAttemptId);
+  return (
+    attempt?.id === origin.executionAttemptId &&
+    attempt.status === "succeeded" &&
+    attempt.investigationId === origin.id &&
+    attempt.authority !== undefined &&
+    attempt.authority.repositoryIds.every((id) => repositoryIds.includes(id))
+  );
 }
 
 /** Unknown or still-running usage retains its reservation even outside the reporting window. */
