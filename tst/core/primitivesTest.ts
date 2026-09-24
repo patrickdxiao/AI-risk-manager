@@ -5,6 +5,7 @@ import {
   normalizeStringList,
   normalizeJsonRecord,
   optionalNonBlank,
+  requireFiniteRange,
   requireInteger,
   requireNonBlank,
   requireTimestampOrder,
@@ -48,6 +49,14 @@ describe("validation primitives", () => {
   it("accepts integer boundaries", () => {
     expect(requireInteger(0, "target", 0)).toBe(0);
     expect(requireInteger(Number.MAX_SAFE_INTEGER, "version", 1)).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("bounds finite measurements including fractional values", () => {
+    expect(requireFiniteRange(0, "confidence", 0, 1)).toBe(0);
+    expect(requireFiniteRange(0.5, "confidence", 0, 1)).toBe(0.5);
+    expect(requireFiniteRange(1, "confidence", 0, 1)).toBe(1);
+    for (const value of [-0.1, 1.1, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(() => requireFiniteRange(value, "confidence", 0, 1)).toThrow(DomainInvariantError);
   });
 
   it.each([

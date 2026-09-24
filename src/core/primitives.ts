@@ -123,6 +123,18 @@ export function requireInteger(value: number, field: string, minimum: number): n
   return value;
 }
 
+/** Reject non-finite numbers and values outside the allowed range. */
+export function requireFiniteRange(
+  value: number,
+  field: string,
+  minimum: number,
+  maximum = Number.POSITIVE_INFINITY,
+): number {
+  if (!Number.isFinite(value) || value < minimum || value > maximum)
+    throw new DomainInvariantError("out_of_range", `${field} is out of range`, field);
+  return value;
+}
+
 /** Copy and freeze bounded lists so later input edits cannot change saved values. */
 export function normalizeStringList(
   values: readonly string[],
