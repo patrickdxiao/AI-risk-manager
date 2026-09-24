@@ -7,10 +7,13 @@ import type {
   TaskId,
   UtcTimestamp,
 } from "../primitives.js";
-export interface FindingEvidence {
-  readonly findingId: FindingId;
+export interface EvidenceCitation {
   readonly evidenceId: EvidenceItemId;
   readonly note?: string;
+}
+
+export interface FindingEvidence extends EvidenceCitation {
+  readonly findingId: FindingId;
 }
 
 export type RiskType =
@@ -41,8 +44,5 @@ export interface Finding {
 export interface CreateFindingInput extends Omit<Finding, "createdAt" | "missingEvidence"> {
   readonly createdAt: string;
   readonly missingEvidence?: readonly string[];
-  readonly evidenceCitations: readonly {
-    readonly evidenceId: EvidenceItemId;
-    readonly note?: string;
-  }[];
+  readonly evidenceCitations: readonly EvidenceCitation[];
 }
