@@ -40,8 +40,10 @@ It's easy to lose track of blockers, at-risk work, and dependencies across multi
   Each attempt retains an explicit repository allowlist, credential, deadline, and tool-call budget.
   Evidence filters and task dependencies do not grant additional repository access.
 
-The current code validates plans, evidence, and repository identities and implements transactional sprint creation and versioned task edits through storage interfaces.
-SQLite storage, investigation services, and the dashboard described below remain subsequent work.
+The current code implements planning, evidence capture coordination, review admission, scoped execution, atomic result acceptance, risk projections, and bounded worker services through ports.
+Repository capture and runtime calls stay outside serialized write transactions.
+Tests cover domain recovery using in-memory stores and scripted runtimes.
+SQLite, Git access enforcement, OpenClaw integration, HTTP endpoints, and the dashboard below remain subsequent work.
 
 ```mermaid
 flowchart TD
@@ -89,7 +91,7 @@ flowchart TD
 | `task_dependencies` | `task_id`, `depends_on_task_id`                                                                                           |
 
 - IDs link the records, and task versions will prevent older edits or results from replacing newer criteria.
-  Task dates, versions, sprint goals and assumptions, and dependency storage still need schema changes.
+  The SQLite schema and storage adapter remain unimplemented.
 
 ### 2. Let the local service coordinate work
 
@@ -109,7 +111,6 @@ flowchart TD
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Manual resync    | The user selects **Resync** to refresh local Git snapshots for the approved repositories, then queue a sprint review even if nothing changed. |
 | Git change       | A new commit or changed worktree snapshot is recorded.                                                                                        |
-| Repeated failure | At least two distinct failure observations are linked to the same unfinished task.                                                            |
 | Task deadline    | An unfinished task reaches its end date.                                                                                                      |
 | Scheduled review | The sprint's review interval has elapsed since its last review, or since sprint start for the first review.                                   |
 
@@ -117,13 +118,15 @@ flowchart TD
   Its dashboard flow is **TBD**.
 - The proposed review interval is 30 minutes and can be changed in sprint settings.
   These rules request an investigation without assigning a risk state or converting points into hours.
-  Task-date triggers and automatic scheduling are **TBD**.
+  Task deadlines and cadence evaluation are implemented against stored facts; automatic scheduling remains **TBD**.
 
 #### Save work before starting it
 
 - `trigger_queue` stores the reason, evidence IDs, and a deduplication key for each review.
-  Repeated observations will be combined into pending work, and `trigger_dispatches` tracks delivery, leases, and retries.
-- Dispatch will start through an API request and initially allow one active investigation at a time for the local installation.
+  Identical requests reuse pending work, while changed observations keep their own immutable request facts.
+  `trigger_dispatches` tracks delivery, leases, and retries.
+- The core worker processes a bounded number of saved requests and allows one active investigation at a time for the local installation.
+  API and scheduler entry points remain **TBD**.
   Each attempt has an ownership version and an expiry time, so an expired worker cannot replace newer work.
   Only temporary failures qualify for retry.
 - [OpenClaw scheduling](https://docs.openclaw.ai/automation/cron-jobs) will start due work automatically.
@@ -132,14 +135,14 @@ flowchart TD
 
 #### Bound access and spending
 
-- Each job will retain the repository IDs and permission version present when it was queued.
+- Each queued request retains its explicit repository IDs, and each attempt snapshots that scope and its planning digest.
   Discovery cannot widen that scope, and revoked access must block later reads and result acceptance.
   Only separately approved fields may go to a provider.
 - Discovery and model work will use separate bounded queues.
-  Before starting model work, the service will reserve budget across active attempts and retries.
-  No new work starts when spent cost and outstanding reservations reach the limit.
+  Before starting model work, the core reserves tokens across active attempts and retries.
+  Admission includes reported tokens from the last 24 hours and unresolved reservations regardless of age.
   Cancelled and timed-out attempts keep their reservations until usage is accounted for.
-  These queue and budget controls are **TBD**.
+  This is token admission accounting, not a provider spending guarantee; cost reconciliation and discovery queues remain **TBD**.
 
 ### 3. Capture evidence from repositories
 
@@ -158,7 +161,8 @@ flowchart TD
 #### Save observations before using them
 
 - The service uses the Git adapter to read worktrees registered in `repositories` and saves capture progress in `repository_observations`.
-  It writes observations to `evidence_items` together with the pending review.
+  It atomically saves evidence and the current observation, then separately admits the review and acknowledges that exact observation.
+  A pending observation cannot be replaced before its review is admitted, and failed handoffs remain recoverable.
   Each observation retains its source, time, and snapshot so a later rebase cannot silently change an old citation.
 - Context selection will use task links, paths, evidence age, and earlier findings.
   Commits and agent reports provide leads, but neither proves completion.
@@ -168,10 +172,10 @@ flowchart TD
 
 #### Start a scoped investigator
 
-- The local service uses `OpenClawCliAdapter` to invoke the OpenClaw CLI with a fresh session, trigger reason, and seed evidence IDs.
-  Before starting the model, the adapter checks the pinned runtime version and that only the four risk tools are available.
-- The [risk tool plugin](https://docs.openclaw.ai/plugins/building-plugins#registering-tools) uses `RiskApiClient` to call Fastify over authenticated HTTP.
-  The service reads SQLite or captures Git evidence and returns it to the model.
+- The local service will use `OpenClawCliAdapter` to invoke the OpenClaw CLI with a fresh session, trigger reason, and seed evidence IDs.
+  Before starting the model, the adapter will check the pinned runtime version and that only the four risk tools are available.
+- The [risk tool plugin](https://docs.openclaw.ai/plugins/building-plugins#registering-tools) will use `RiskApiClient` to call Fastify over authenticated HTTP.
+  The service will read SQLite or capture Git evidence and return it to the model.
 
 | Tool                 | Purpose                                                                                    |
 | -------------------- | ------------------------------------------------------------------------------------------ |
@@ -201,11 +205,11 @@ flowchart TD
 
 - The finalization hook does not run on user abort and must never restart cancelled work.
   Hooks supplement API-side checks, and only the service's acceptance transaction can publish findings.
-  These hooks and credentials that isolate each attempt are **TBD**.
-- The service already limits attempts to at most ten minutes and bounds CLI output.
-  A timeout aborts the local CLI, and cancellation revokes result acceptance, but remote work may continue.
-  The 12-call cap is currently prompt guidance.
-  Hard enforcement is **TBD**, and OpenClaw integration remains unverified.
+  Attempt credentials and service-side read limits are implemented; the OpenClaw hooks remain **TBD**.
+- The core limits runtime calls to at most ten minutes, supplies an abort signal, and enforces 12 authenticated evidence/context reads per attempt.
+  Authenticated failed reads also consume the read budget.
+  Cancellation and expired leases block acceptance of late results, but an adapter or remote provider may continue work after an abort.
+  CLI output bounds and actual OpenClaw cancellation behavior remain unverified until the adapter is implemented.
 
 #### What the blocker POC shows
 
@@ -234,18 +238,21 @@ flowchart TD
   Unexamined work cannot be marked healthy.
   An `uncertain` finding may omit citations when it explains why supporting evidence is unavailable.
 - Before acceptance, the service checks attempt ownership, scope, citations, and result size.
-  Planned input-version and coverage checks will keep outdated results as history and retain blockers that a partial review did not examine.
-  Automatic completion will require evidence for every criterion and an unchanged task version.
+  The core rejects results if the planning digest changed during execution and retains unexamined risks and findings from untouched scopes.
+  The current assessment becomes uncertain when a healthy finding's original planning digest no longer matches the saved plan.
+  Findings never complete tasks; completion remains an explicit user action.
 - The investigator will ask for input only when unresolved ambiguity changes scope or completion criteria.
   The service will save the question for the dashboard, release capacity, and queue a new attempt when the user answers.
-  This question flow and automatic completion are **TBD**.
+  The core stores questions with accepted results; dashboard answers and follow-up review orchestration remain **TBD**.
+  Automatic task completion is outside this milestone.
 
 #### Commit one result atomically
 
 - `SubmitInvestigationResult` saves an immutable receipt in `investigation_results` alongside `findings`, `finding_evidence`, risk changes, and the attempt outcome in one transaction.
-  Equivalent retries return the original receipt, while different submissions are rejected.
+  Equivalent retries return the original acknowledgement, while different submissions are rejected.
+  The full receipt stays local because it can retain older findings outside the submitting attempt's repository scope.
   `investigations` and `investigation_attempts` preserve execution history.
-- SQLite uses [WAL](https://www.sqlite.org/wal.html), a five-second busy timeout, and short [`BEGIN IMMEDIATE` transactions](https://www.sqlite.org/lang_transaction.html).
+- The planned SQLite adapter will use [WAL](https://www.sqlite.org/wal.html), a five-second busy timeout, and short [`BEGIN IMMEDIATE` transactions](https://www.sqlite.org/lang_transaction.html).
   Git and provider calls stay outside transactions so slow external work cannot hold the write lock.
   Failed writes leave no partial result, and the database lives outside monitored repositories.
 
@@ -253,9 +260,9 @@ flowchart TD
 
 - A standalone Node script found two repository markers in nine entries and reported incomplete discovery at a one-entry cap without changing fixture contents, modes, or links.
   Real SQLite operations recovered an expired lease, rejected stale attempts and wrong-repository citations, rolled back a failed write, and retained one receipt across equivalent retries.
-- This POC used small filesystem fixtures and no model.
+- This POC used an earlier revision, small filesystem fixtures, and no model; it was not rerun during this milestone.
   Reopening a normally closed database does not test abrupt-crash recovery.
-  Git identity checks, path races, permission handling, time limits, load, and automatic task updates remain unverified.
+  Git identity checks, path races, permission handling, time limits, and load remain unverified.
 
 ![Terminal output showing discovered repositories and SQLite recovery](images/poc-discovery-and-recovery.png)
 
@@ -272,7 +279,7 @@ flowchart TD
   Unfinished tasks stay visible, and reopening a task restores it to the active view without deleting history.
   Archiving and these fuller dashboard views are **TBD**.
 - Feedback preserves the original evidence and accepted result.
-  Using it to guide later investigations is **TBD**.
+  Scoped investigation context includes saved feedback; the dashboard workflow remains **TBD**.
 
 #### Measure responsiveness and cost
 
@@ -379,7 +386,7 @@ flowchart TD
 
 ### What happens when evidence or criteria are missing?
 
-- Missing criteria prevent automatic completion.
+- Missing criteria are reported as uncertainty; an agent result cannot complete a task.
   Missing activity cannot prove success or failure, and conflicting sources retain their timestamps and identity.
   External records need schema checks for absent or null fields, and findings must explain uncertainty.
 
