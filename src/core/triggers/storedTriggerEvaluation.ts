@@ -12,6 +12,7 @@ import {
   type ClockPort,
   type IdGeneratorPort,
 } from "../primitives.js";
+import type { Repository } from "../repository/repositoryModel.js";
 import type { UnitOfWorkPort } from "../storageContracts.js";
 import { evaluateTriggers } from "./evaluateTriggers.js";
 import { QueueReview } from "./triggerService.js";
@@ -56,13 +57,17 @@ export class EvaluateStoredTriggers {
       input.sprintId === undefined ? undefined : requireNonBlank(input.sprintId, "sprintId", 200);
     return this.store.execute(async (store) => {
       const now = requireUtcTimestamp(this.clock.now(), "now");
-      for (const id of repositoryIds)
-        if ((await store.repositories.findById(id)) === undefined)
+      const repositories = new Map<string, Repository>();
+      for (const id of repositoryIds) {
+        const repository = await store.repositories.findById(id);
+        if (repository?.id !== id)
           throw new ApplicationError(
             "repository_not_found",
             `Repository ${id} is not registered`,
             "repositoryIds",
           );
+        repositories.set(id, repository);
+      }
       const selectedTask =
         taskId === undefined ? undefined : await store.planning.findTaskById(taskId);
       if (taskId !== undefined && selectedTask === undefined)
@@ -83,6 +88,11 @@ export class EvaluateStoredTriggers {
       const pending: {
         readonly candidate: TriggerCandidate;
         readonly evidenceIds: readonly string[];
+        readonly observation?: {
+          readonly repositoryId: string;
+          readonly snapshotDigest: string;
+          readonly observedAt: string;
+        };
       }[] = [];
       if (sprint !== undefined) {
         const base: TriggerContext = {
@@ -108,7 +118,10 @@ export class EvaluateStoredTriggers {
         for (const repositoryId of repositoryIds) {
           const observation = await store.repositoryObservations.findByRepositoryId(repositoryId);
           if (observation === undefined) continue;
-          if (observation.repositoryId !== repositoryId)
+          if (
+            observation.repositoryId !== repositoryId ||
+            observation.snapshot.rootPath !== repositories.get(repositoryId)?.canonicalPath
+          )
             throw new DomainInvariantError(
               "scope_mismatch",
               "Stored observation does not match the selected repository",
@@ -171,6 +184,15 @@ export class EvaluateStoredTriggers {
                   .digest("hex")}`,
               }),
               evidenceIds: selected.map((item) => item.id),
+              ...(observation.evaluatedSnapshotDigest === snapshotDigest
+                ? {}
+                : {
+                    observation: {
+                      repositoryId,
+                      snapshotDigest,
+                      observedAt: observation.observedAt,
+                    },
+                  }),
             });
         }
         const tasks =
@@ -211,6 +233,20 @@ export class EvaluateStoredTriggers {
             cooldownMinutes,
           });
           (result.status === "queued" ? queued : existing).push(result.trigger);
+          const observation = request.observation;
+          if (
+            observation !== undefined &&
+            !(await store.repositoryObservations.markEvaluated(
+              observation.repositoryId,
+              observation.snapshotDigest,
+              observation.observedAt,
+            ))
+          )
+            throw new ApplicationError(
+              "repository_observation_conflict",
+              "Observation changed before its review was admitted",
+              "repositoryId",
+            );
         } catch (error) {
           if (!(error instanceof ApplicationError) || error.code !== "investigation_queue_full")
             throw error;

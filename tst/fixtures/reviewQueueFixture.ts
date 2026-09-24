@@ -33,7 +33,7 @@ export function reviewQueueFixture(
   let previous: Promise<unknown> = Promise.resolve();
   let rejectDispatch = false;
   const evidence = [...(seed.evidence ?? [])];
-  const observations = new Map(seed.observations?.map((item) => [item.repositoryId, item]));
+  let observations = new Map(seed.observations?.map((item) => [item.repositoryId, item]));
   function scope(value: TriggerCooldownScope): string {
     return JSON.stringify([value.type, value.sprintId, value.taskId ?? null, value.repositoryIds]);
   }
@@ -61,6 +61,7 @@ export function reviewQueueFixture(
       const run = previous.then(async () => {
         const nextTriggers = new Map(triggers);
         const nextDispatches = new Map(dispatches);
+        const nextObservations = new Map(observations);
         const ports = {
           planning: {
             findActiveSprint: () =>
@@ -77,7 +78,17 @@ export function reviewQueueFixture(
               Promise.resolve(seed.repositories?.find((item) => item.id === id)),
           },
           repositoryObservations: {
-            findByRepositoryId: (id: string) => Promise.resolve(observations.get(id)),
+            findByRepositoryId: (id: string) => Promise.resolve(nextObservations.get(id)),
+            markEvaluated: (id: string, digest: string, observedAt: string) => {
+              const observation = nextObservations.get(id);
+              if (
+                observation?.snapshot.snapshotDigest !== digest ||
+                observation.observedAt !== observedAt
+              )
+                return Promise.resolve(false);
+              nextObservations.set(id, { ...observation, evaluatedSnapshotDigest: digest });
+              return Promise.resolve(true);
+            },
           },
           evidence: {
             findById: (id: string) => Promise.resolve(evidence.find((item) => item.id === id)),
@@ -140,6 +151,7 @@ export function reviewQueueFixture(
         const result = await work(context);
         triggers = nextTriggers;
         dispatches = nextDispatches;
+        observations = nextObservations;
         return result;
       });
       previous = run.catch(() => undefined);
@@ -150,6 +162,7 @@ export function reviewQueueFixture(
     store,
     triggers: () => [...triggers.values()],
     dispatches: () => [...dispatches.values()],
+    observations: () => [...observations.values()],
     addEvidence: (item: EvidenceItem) => {
       evidence.push(item);
     },
