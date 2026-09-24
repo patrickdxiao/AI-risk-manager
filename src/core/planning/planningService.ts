@@ -118,10 +118,13 @@ export class EditTask {
         transitionTaskState(previous, { to: input.state, actor: "user", occurredAt: now });
       const { description: oldDescription, ...previousFields } = previous;
       const { description: newDescription, ...patch } = input;
+      const definedPatch = Object.fromEntries(
+        Object.entries<unknown>(patch).filter(([, value]) => value !== undefined),
+      );
       const description = newDescription === null ? undefined : (newDescription ?? oldDescription);
       const task = createTask({
         ...previousFields,
-        ...patch,
+        ...definedPatch,
         ...(description === undefined ? {} : { description }),
         id: previous.id,
         sprintId: previous.sprintId,
