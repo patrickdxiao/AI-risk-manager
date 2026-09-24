@@ -26,7 +26,8 @@ export type DomainErrorCode =
   | "invalid_date_range"
   | "self_dependency"
   | "duplicate_reference"
-  | "invalid_transition";
+  | "invalid_transition"
+  | "scope_mismatch";
 
 /** Reports invalid domain data with a stable code and field. */
 export class DomainInvariantError extends Error {
@@ -119,4 +120,55 @@ export function normalizeStringList(
       requireNonBlank(value, `${field}[${String(index)}]`, maximumLength),
     ),
   );
+}
+
+/** Copy bounded plain JSON without executing accessors or retaining mutable input. */
+export function normalizeJsonRecord(
+  value: unknown,
+  field: string,
+): Readonly<Record<string, JsonValue>> {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new DomainInvariantError("invalid_value", `${field} must be a JSON object`, field);
+  let remainingValues = 10_000;
+  let remainingText = 100_000;
+  const ancestors = new Set<object>();
+
+  function copy(value: unknown, path: string, depth: number): JsonValue {
+    remainingValues -= 1;
+    if (typeof value === "string") remainingText -= value.length;
+    if (depth > 20 || remainingValues < 0 || remainingText < 0)
+      throw new DomainInvariantError("out_of_range", `${path} exceeds JSON limits`, path);
+    if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value !== "object")
+      throw new DomainInvariantError("invalid_value", `${path} must contain JSON values`, path);
+    if (ancestors.has(value))
+      throw new DomainInvariantError("invalid_value", `${path} must not contain cycles`, path);
+    const array = Array.isArray(value);
+    const prototype: unknown = Object.getPrototypeOf(value);
+    if (!array && prototype !== Object.prototype && prototype !== null)
+      throw new DomainInvariantError("invalid_value", `${path} must contain plain objects`, path);
+    const keys = Reflect.ownKeys(value);
+    if (keys.length > remainingValues + 1)
+      throw new DomainInvariantError("out_of_range", `${path} exceeds JSON limits`, path);
+    ancestors.add(value);
+    const entries: [string, JsonValue][] = [];
+    for (const key of keys) {
+      if (array && key === "length") continue;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (typeof key !== "string" || !descriptor?.enumerable || !("value" in descriptor))
+        throw new DomainInvariantError("invalid_value", `${path} must contain JSON data`, path);
+      remainingText -= key.length;
+      entries.push([key, copy(descriptor.value, `${path}.${key}`, depth + 1)]);
+    }
+    ancestors.delete(value);
+    if (array) {
+      if (entries.length !== value.length || entries.some(([key], index) => key !== String(index)))
+        throw new DomainInvariantError("invalid_value", `${path} must be a dense JSON array`, path);
+      return Object.freeze(entries.map(([, item]) => item));
+    }
+    return Object.freeze(Object.fromEntries(entries));
+  }
+
+  return copy(value, field, 0) as Readonly<Record<string, JsonValue>>;
 }
