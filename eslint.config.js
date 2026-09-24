@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/coverage/**"],
+    ignores: ["**/coverage/**", "**/dist/**"],
   },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
