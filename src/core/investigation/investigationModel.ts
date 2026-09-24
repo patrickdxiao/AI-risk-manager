@@ -1,4 +1,4 @@
-import type { RiskType } from "./findingModel.js";
+import type { EvidenceCitation, RiskType } from "./findingModel.js";
 import type {
   InvestigationId,
   RepositoryId,
@@ -62,7 +62,7 @@ export interface InvestigationAttempt {
   readonly model?: string;
   /** Unreported counters and cost remain absent, never substituted with zero. */
   readonly usage?: InvestigationUsage;
-  /** Immutable scope and admission state; secrets themselves are never persisted. */
+  /** Missing authority grants no tool access; credentials themselves are never persisted. */
   readonly authority?: {
     readonly credentialHash: string;
     readonly repositoryIds: readonly RepositoryId[];
@@ -90,11 +90,6 @@ export interface RuntimeUsageObservation {
   readonly estimatedCostUsd?: number;
 }
 
-interface FindingEvidenceCitation {
-  readonly evidenceId: string;
-  readonly note?: string;
-}
-
 export interface RuntimeFindingDraft {
   readonly taskId?: string;
   readonly state: RiskState;
@@ -106,7 +101,7 @@ export interface RuntimeFindingDraft {
   readonly recommendedUserAction?: string;
   readonly nextCheckAt?: string;
   readonly nextCheckCondition?: string;
-  readonly evidenceCitations: readonly FindingEvidenceCitation[];
+  readonly evidenceCitations: readonly EvidenceCitation[];
 }
 
 export interface InvestigationStructuredResult {

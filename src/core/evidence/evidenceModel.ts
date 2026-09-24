@@ -30,7 +30,7 @@ export interface SelectedEvidenceContent {
 export interface EvidenceItem {
   readonly id: EvidenceItemId;
   readonly eventId: EvidenceEventId;
-  /** Repository provenance is independent of the sprint or task using the evidence. */
+  /** Required for repository-derived evidence, independently of its sprint or task. */
   readonly repositoryId?: RepositoryId;
   readonly sprintId?: SprintId;
   readonly taskId?: TaskId;
