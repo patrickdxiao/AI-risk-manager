@@ -63,7 +63,8 @@ export function createSprint(input: CreateSprintInput): Sprint {
 const TASK_STATES = ["planned", "in_progress", "needs_confirmation", "done"] as const;
 export type TaskState = (typeof TASK_STATES)[number];
 
-export type TaskTransitionActor = "user" | "investigation";
+const TASK_TRANSITION_ACTORS = ["user", "investigation"] as const;
+export type TaskTransitionActor = (typeof TASK_TRANSITION_ACTORS)[number];
 
 export interface Task {
   readonly id: TaskId;
@@ -174,10 +175,11 @@ export function transitionTaskState(
   const occurredAt = requireUtcTimestamp(input.occurredAt, "occurredAt");
   requireTimestampOrder(task.updatedAt, occurredAt, "occurredAt");
   const allowed =
-    input.actor === "investigation"
+    TASK_TRANSITION_ACTORS.includes(input.actor) &&
+    (input.actor === "investigation"
       ? (task.state === "planned" || task.state === "in_progress") &&
         input.to === "needs_confirmation"
-      : input.actor === "user" && USER_TRANSITIONS[task.state].includes(input.to);
+      : USER_TRANSITIONS[task.state].includes(input.to));
   if (!allowed)
     throw new DomainInvariantError(
       "invalid_transition",
