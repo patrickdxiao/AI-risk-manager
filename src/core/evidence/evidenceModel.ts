@@ -59,6 +59,10 @@ export interface CreateEvidenceItemInput extends Omit<EvidenceItem, "occurredAt"
   readonly occurredAt: string;
 }
 
+export function requiresRepositoryId(item: Pick<EvidenceItem, "source" | "kind">): boolean {
+  return item.source === "git" || repositoryEvidenceKinds.some((kind) => kind === item.kind);
+}
+
 /** Validate an immutable observation; access and disclosure permissions are checked by services. */
 export function createEvidenceItem(input: CreateEvidenceItemInput): EvidenceItem {
   for (const [field, valid] of [
@@ -72,10 +76,7 @@ export function createEvidenceItem(input: CreateEvidenceItemInput): EvidenceItem
     input.repositoryId === undefined
       ? undefined
       : requireNonBlank(input.repositoryId, "repositoryId", 200);
-  if (
-    repositoryId === undefined &&
-    (input.source === "git" || repositoryEvidenceKinds.some((kind) => kind === input.kind))
-  )
+  if (repositoryId === undefined && requiresRepositoryId(input))
     throw new DomainInvariantError(
       "required",
       "repository-derived evidence requires repositoryId",
