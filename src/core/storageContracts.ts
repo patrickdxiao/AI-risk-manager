@@ -172,7 +172,7 @@ export interface TransactionContext {
   readonly risks: RiskStore;
 }
 
-/** Commit all callback writes together; failure leaves no partial domain changes. */
+/** Serialize writers and their admission reads; commit all callback writes or none on failure. */
 export interface UnitOfWorkPort {
   execute<T>(work: (context: TransactionContext) => Promise<T>): Promise<T>;
 }
