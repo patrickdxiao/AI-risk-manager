@@ -47,6 +47,8 @@ export type DomainErrorCode =
   | "invalid_date_range"
   | "self_dependency"
   | "duplicate_reference"
+  | "missing_evidence_citation"
+  | "unknown_evidence_citation"
   | "invalid_transition"
   | "scope_mismatch";
 
