@@ -5,6 +5,7 @@ import {
   type EvidenceItemId,
   type RepositoryId,
   requireNonBlank,
+  requireInteger,
   requireUtcTimestamp,
   type UtcTimestamp,
 } from "../primitives.js";
@@ -114,7 +115,54 @@ export interface RepositoryObservation {
   readonly repositoryId: string;
   readonly observedAt: string;
   readonly snapshot: RepositoryObservationSnapshot;
+  /** Stored IDs after full-provenance deduplication, retained for a durable trigger handoff. */
+  readonly evidenceIds: readonly EvidenceItemId[];
   readonly evaluatedSnapshotDigest?: string;
+}
+
+/** Copy bounded adapter output before it crosses a transaction boundary. */
+export function createRepositoryObservationSnapshot(
+  input: RepositoryObservationSnapshot,
+): RepositoryObservationSnapshot {
+  const status = input.status;
+  for (const [field, value] of Object.entries({
+    detached: input.detached,
+    clean: status.clean,
+    pathsTruncated: status.pathsTruncated,
+  }))
+    if (typeof value !== "boolean")
+      throw new DomainInvariantError("invalid_value", `${field} must be boolean`, field);
+  for (const field of ["stagedCount", "unstagedCount", "untrackedCount", "totalPathCount"] as const)
+    requireInteger(status[field], `status.${field}`, 0);
+  if (status.paths.length > 200 || status.paths.length > status.totalPathCount)
+    throw new DomainInvariantError("out_of_range", "Captured paths exceed their bound", "paths");
+  const paths = status.paths.map((item) => {
+    for (const field of ["staged", "unstaged", "untracked"] as const)
+      if (typeof item[field] !== "boolean")
+        throw new DomainInvariantError("invalid_value", `${field} must be boolean`, field);
+    return Object.freeze({
+      path: requireStoredPath(item.path, "path"),
+      staged: item.staged,
+      unstaged: item.unstaged,
+      untracked: item.untracked,
+    });
+  });
+  return Object.freeze({
+    rootPath: requireStoredPath(input.rootPath, "rootPath"),
+    head: requireNonBlank(input.head, "head", 512),
+    branch: input.branch === null ? null : requireNonBlank(input.branch, "branch", 512),
+    detached: input.detached,
+    status: Object.freeze({
+      clean: status.clean,
+      stagedCount: status.stagedCount,
+      unstagedCount: status.unstagedCount,
+      untrackedCount: status.untrackedCount,
+      totalPathCount: status.totalPathCount,
+      paths: Object.freeze(paths),
+      pathsTruncated: status.pathsTruncated,
+    }),
+    snapshotDigest: requireNonBlank(input.snapshotDigest, "snapshotDigest", 512),
+  });
 }
 
 export interface RepositoryObservationCapture {

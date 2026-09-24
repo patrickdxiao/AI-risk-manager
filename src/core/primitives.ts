@@ -27,6 +27,7 @@ export type ApplicationErrorCode =
   | "finding_feedback_conflict"
   | "investigation_not_found"
   | "task_scope_mismatch"
+  | "repository_observation_conflict"
   | "evidence_not_found"
   | "evidence_scope_mismatch"
   | "attempt_unauthorized"

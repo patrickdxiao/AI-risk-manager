@@ -3,9 +3,11 @@ import {
   ApplicationError,
   DomainInvariantError,
   MAX_REVIEW_REPOSITORIES,
+  MAX_REVIEW_SEED_EVIDENCE,
   normalizeStringList,
   requireInteger,
   requireNonBlank,
+  requireTimestampOrder,
   requireUtcTimestamp,
   type ClockPort,
   type IdGeneratorPort,
@@ -104,45 +106,71 @@ export class EvaluateStoredTriggers {
             pending.push({ candidate, evidenceIds: [] });
         }
         for (const repositoryId of repositoryIds) {
-          const [change] = await store.evidence.findScoped({
-            repositoryId,
-            sprintId: null,
-            taskId: null,
-            source: "git",
-            kinds: [
-              "commit",
-              "worktree_change",
-              "branch_change",
-              "repository_snapshot",
-              "upstream_relation",
-            ],
-            occurredThrough: now,
-            limit: 1,
-          });
-          if (change === undefined) continue;
-          if (
-            change.repositoryId !== repositoryId ||
-            change.source !== "git" ||
-            change.sprintId !== undefined ||
-            change.taskId !== undefined
-          )
+          const observation = await store.repositoryObservations.findByRepositoryId(repositoryId);
+          if (observation === undefined) continue;
+          if (observation.repositoryId !== repositoryId)
             throw new DomainInvariantError(
               "scope_mismatch",
-              "Stored Git evidence does not match the selected repository",
+              "Stored observation does not match the selected repository",
               "repositoryId",
             );
+          const occurredAt = requireUtcTimestamp(observation.observedAt, "observation.observedAt");
+          requireTimestampOrder(occurredAt, now, "observation.observedAt");
+          const snapshotDigest = requireNonBlank(
+            observation.snapshot.snapshotDigest,
+            "snapshotDigest",
+            512,
+          );
+          const allIds = [
+            ...new Set(normalizeStringList(observation.evidenceIds, "evidenceIds", 100, 200)),
+          ].sort();
+          if (allIds.length === 0)
+            throw new DomainInvariantError(
+              "required",
+              "Saved observation has no supporting evidence",
+              "evidenceIds",
+            );
+          const seeds = [];
+          for (const id of allIds) {
+            const item = await store.evidence.findById(id);
+            if (
+              item?.id !== id ||
+              item.repositoryId !== repositoryId ||
+              item.source !== "git" ||
+              item.sprintId !== undefined ||
+              item.taskId !== undefined
+            )
+              throw new DomainInvariantError(
+                "scope_mismatch",
+                "Observation evidence is missing or has different provenance",
+                "evidenceIds",
+              );
+            requireTimestampOrder(item.occurredAt, occurredAt, "evidence.occurredAt");
+            seeds.push(item);
+          }
+          const selected = seeds.slice(0, MAX_REVIEW_SEED_EVIDENCE);
+          const digests = [...new Set(selected.map((item) => item.digest))].sort();
+          const first = selected[0];
+          if (first === undefined) throw new Error("Observation requires a seed");
           for (const candidate of evaluateTriggers({
             ...base,
-            gitChange: { repositoryId, occurredAt: change.occurredAt, digest: change.digest },
+            evidenceDigests: digests,
+            gitChange: { repositoryId, occurredAt, digest: first.digest },
           }))
             pending.push({
               candidate: Object.freeze({
                 ...candidate,
+                inputSummary: Object.freeze({
+                  ...candidate.inputSummary,
+                  snapshotDigest,
+                  evidenceCount: allIds.length,
+                  seedEvidenceCount: selected.length,
+                }),
                 dedupKey: `trigger:git_change:${createHash("sha256")
-                  .update(JSON.stringify([candidate.dedupKey, change.id]))
+                  .update(JSON.stringify([candidate.dedupKey, snapshotDigest, occurredAt, allIds]))
                   .digest("hex")}`,
               }),
-              evidenceIds: [change.id],
+              evidenceIds: selected.map((item) => item.id),
             });
         }
         const tasks =
