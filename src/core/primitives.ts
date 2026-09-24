@@ -8,6 +8,27 @@ export type FindingId = string;
 export type FindingFeedbackId = string;
 export type UtcTimestamp = string;
 
+export interface ClockPort {
+  now(): UtcTimestamp;
+}
+
+export interface IdGeneratorPort {
+  next(): string;
+}
+
+export type ApplicationErrorCode = "sprint_not_found" | "task_not_found" | "task_version_conflict";
+
+export class ApplicationError extends Error {
+  override readonly name = "ApplicationError";
+  constructor(
+    readonly code: ApplicationErrorCode,
+    message: string,
+    readonly field: string,
+  ) {
+    super(message);
+  }
+}
+
 export type PrivacyMode = "metadata_only" | "selected_content";
 export type RiskState = "healthy" | "uncertain" | "at_risk" | "blocked";
 
