@@ -2,8 +2,8 @@
 
 A local risk agent for one developer's sprints, tasks, and approved repositories.
 Tasks can depend on each other and span repositories without a project setup step.
-This revision defines data contracts and validates sprint/task records and state transitions.
-Storage, repository access enforcement, and runtime integration come in later changes.
+This revision validates plans, evidence, and repository identities and implements transactional sprint creation and versioned task edits.
+Services use storage interfaces; SQLite, repository access enforcement, and runtime integration come in later changes.
 
 Read [the design](docs/design.md) for the architecture and scope.
 
