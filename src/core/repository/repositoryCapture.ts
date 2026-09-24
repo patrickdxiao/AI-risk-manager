@@ -231,18 +231,11 @@ export class EvaluatePendingRepository {
         this.ids,
         this.clock,
       ).execute({ repositoryIds: [repositoryId], cooldownMinutes: 15 });
+      const saved = await store.repositoryObservations.findByRepositoryId(repositoryId);
       const evaluated =
-        evaluation.deferred.length === 0 &&
-        evaluation.fired.some((candidate) => candidate.type === "git_change");
-      if (
-        evaluated &&
-        !(await store.repositoryObservations.markEvaluated(
-          repositoryId,
-          observation.snapshot.snapshotDigest,
-          observation.observedAt,
-        ))
-      )
-        throw new RepositoryObservationConflictError();
+        saved?.observedAt === observation.observedAt &&
+        saved.snapshot.snapshotDigest === observation.snapshot.snapshotDigest &&
+        saved.evaluatedSnapshotDigest === observation.snapshot.snapshotDigest;
       return Object.freeze({
         triggerIds: Object.freeze(
           [...evaluation.queued, ...evaluation.existing].map((item) => item.id),

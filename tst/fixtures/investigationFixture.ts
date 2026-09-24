@@ -4,7 +4,10 @@ import type {
   InvestigationAttempt,
 } from "../../src/core/investigation/investigationModel.js";
 import type { Sprint, Task } from "../../src/core/planning/planningModel.js";
-import type { Repository } from "../../src/core/repository/repositoryModel.js";
+import type {
+  Repository,
+  RepositoryObservation,
+} from "../../src/core/repository/repositoryModel.js";
 import type { Finding, FindingEvidence } from "../../src/core/investigation/findingModel.js";
 import type { RiskSnapshot, RiskTransition } from "../../src/core/risk/riskModel.js";
 import type { FindingFeedback } from "../../src/core/risk/findingFeedback.js";
@@ -13,7 +16,11 @@ import type {
   TransactionContext,
   UnitOfWorkPort,
 } from "../../src/core/storageContracts.js";
-import type { TriggerDispatch } from "../../src/core/triggers/triggerModel.js";
+import type {
+  TriggerDispatch,
+  TriggerQueueRecord,
+  TriggerCooldownScope,
+} from "../../src/core/triggers/triggerModel.js";
 
 /** This fixture supplies the serialized transaction contract; it does not test SQLite isolation. */
 export function investigationFixture(
@@ -30,11 +37,15 @@ export function investigationFixture(
     findings?: readonly Finding[];
     snapshots?: readonly RiskSnapshot[];
     failFenced?: boolean;
+    triggers?: readonly TriggerQueueRecord[];
+    observations?: readonly RepositoryObservation[];
   } = {},
 ) {
   let investigations = new Map(seed.investigations?.map((item) => [item.id, item]));
   let attempts = new Map(seed.attempts?.map((item) => [item.id, item]));
   let dispatches = new Map(seed.dispatches?.map((item) => [item.triggerId, item]));
+  let triggers = new Map(seed.triggers?.map((item) => [item.id, item]));
+  let observations = new Map(seed.observations?.map((item) => [item.repositoryId, item]));
   const sprints = new Map(seed.sprints?.map((item) => [item.id, item]));
   const tasks = new Map(seed.tasks?.map((item) => [item.id, item]));
   const repositories = new Map(seed.repositories?.map((item) => [item.id, item]));
@@ -69,6 +80,8 @@ export function investigationFixture(
           nextAttempts = new Map(attempts),
           nextDispatches = new Map(dispatches),
           nextReceipts = new Map(receipts),
+          nextTriggers = new Map(triggers),
+          nextObservations = new Map(observations),
           nextFindings = new Map(findings);
         const nextCitations = [...citations],
           nextSnapshots = [...snapshots],
@@ -76,6 +89,11 @@ export function investigationFixture(
         const context = new Proxy(
           {
             planning: port("planning", {
+              listSprints: () => Promise.resolve([...sprints.values()]),
+              findOpenTasks: () =>
+                Promise.resolve([...tasks.values()].filter((item) => item.state !== "done")),
+              findActiveSprint: () =>
+                Promise.resolve([...sprints.values()].find((item) => item.state === "active")),
               findSprintById: (id) => Promise.resolve(sprints.get(id)),
               findTaskById: (id) => Promise.resolve(tasks.get(id)),
               findTasksBySprintId: (id) =>
@@ -84,7 +102,64 @@ export function investigationFixture(
             repositories: port("repositories", {
               findById: (id) => Promise.resolve(repositories.get(id)),
             }),
+            repositoryObservations: port("repositoryObservations", {
+              findByRepositoryId: (id) => Promise.resolve(nextObservations.get(id)),
+              markEvaluated: (id, digest, observedAt) => {
+                const current = nextObservations.get(id);
+                if (
+                  current?.snapshot.snapshotDigest !== digest ||
+                  current.observedAt !== observedAt
+                )
+                  return Promise.resolve(false);
+                nextObservations.set(id, { ...current, evaluatedSnapshotDigest: digest });
+                return Promise.resolve(true);
+              },
+            }),
+            triggerQueue: port("triggerQueue", {
+              findById: (id) => Promise.resolve(nextTriggers.get(id)),
+              findByDedupKey: (key) =>
+                Promise.resolve([...nextTriggers.values()].find((item) => item.dedupKey === key)),
+              findLatestByCooldownScope: (scope) => {
+                const key = (value: TriggerCooldownScope) =>
+                  JSON.stringify([
+                    value.type,
+                    value.sprintId,
+                    value.taskId ?? null,
+                    value.repositoryIds,
+                  ]);
+                return Promise.resolve(
+                  [...nextTriggers.values()]
+                    .filter((item) => key(item) === key(scope))
+                    .sort(
+                      (a, b) =>
+                        b.observedAt.localeCompare(a.observedAt) || b.id.localeCompare(a.id),
+                    )[0],
+                );
+              },
+              add: (item) => {
+                if (
+                  nextTriggers.has(item.id) ||
+                  [...nextTriggers.values()].some((other) => other.dedupKey === item.dedupKey)
+                )
+                  throw new Error("Duplicate trigger");
+                nextTriggers.set(item.id, item);
+                return Promise.resolve();
+              },
+            }),
             investigations: port("investigations", {
+              add: (item) => {
+                nextInvestigations.set(item.id, item);
+                return Promise.resolve();
+              },
+              findByDedupKey: (key) =>
+                Promise.resolve(
+                  [...nextInvestigations.values()].find(
+                    (item) =>
+                      item.sprintId === key.sprintId &&
+                      item.taskId === key.taskId &&
+                      item.triggerId === key.triggerId,
+                  ),
+                ),
               findById: (id) => Promise.resolve(nextInvestigations.get(id)),
               findAttemptById: (id) => Promise.resolve(nextAttempts.get(id)),
               findActive: (now) =>
@@ -206,6 +281,30 @@ export function investigationFixture(
                 ),
             }),
             triggerDispatches: port("triggerDispatches", {
+              add: (item) => {
+                nextDispatches.set(item.triggerId, item);
+                return Promise.resolve();
+              },
+              countPending: () =>
+                Promise.resolve(
+                  [...nextDispatches.values()].filter(
+                    (item) => item.status !== "completed" && item.status !== "dead",
+                  ).length,
+                ),
+              findNextDue: (now) =>
+                Promise.resolve(
+                  [...nextDispatches.values()]
+                    .filter(
+                      (item) =>
+                        ((item.status === "pending" || item.status === "retry_wait") &&
+                          item.dueAt <= now) ||
+                        (item.status === "leased" && (item.leaseExpiresAt ?? "") <= now),
+                    )
+                    .sort(
+                      (a, b) =>
+                        a.dueAt.localeCompare(b.dueAt) || a.triggerId.localeCompare(b.triggerId),
+                    )[0],
+                ),
               findByTriggerId: (id) => Promise.resolve(nextDispatches.get(id)),
               findByInvestigationId: (id) =>
                 Promise.resolve(
@@ -235,6 +334,8 @@ export function investigationFixture(
         investigations = nextInvestigations;
         attempts = nextAttempts;
         dispatches = nextDispatches;
+        triggers = nextTriggers;
+        observations = nextObservations;
         receipts = nextReceipts;
         findings = nextFindings;
         citations = nextCitations;
@@ -256,6 +357,8 @@ export function investigationFixture(
     investigations: () => [...investigations.values()],
     attempts: () => [...attempts.values()],
     dispatches: () => [...dispatches.values()],
+    triggers: () => [...triggers.values()],
+    observations: () => [...observations.values()],
     receipts: () => [...receipts.values()],
     findings: () => [...findings.values()],
     citations: () => citations,

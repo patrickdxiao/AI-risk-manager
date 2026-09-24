@@ -449,10 +449,13 @@ describe("durable capture handoff", () => {
     expect(fixture.triggers()).toHaveLength(1);
   });
 
-  it("retries an existing queued request after interrupted acknowledgement without duplicating it", async () => {
+  it("retries an existing queued request with a pending cursor without duplicating it", async () => {
     const fixture = setup();
     await fixture.capture.execute({ repositoryId: "web" });
+    const pending = fixture.observation();
     await fixture.evaluate.execute({ repositoryIds: ["web"], cooldownMinutes: 15 });
+    expect(fixture.observation()?.evaluatedSnapshotDigest).toBe("a");
+    fixture.replaceObservation(pending);
     expect(fixture.observation()).not.toHaveProperty("evaluatedSnapshotDigest");
     fixture.failWrite("mark");
     await expect(fixture.pending.execute("web")).rejects.toThrow("Cursor write failed");

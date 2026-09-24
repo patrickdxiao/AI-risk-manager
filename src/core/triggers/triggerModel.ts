@@ -122,6 +122,7 @@ export interface TriggerDispatchStore {
   countPending(): Promise<number>;
   findByTriggerId(triggerId: string): Promise<TriggerDispatch | undefined>;
   findByInvestigationId(investigationId: InvestigationId): Promise<TriggerDispatch | undefined>;
+  /** Pending/retry work with dueAt <= now, or expired leases; exclude terminals and order by dueAt then triggerId. */
   findNextDue(now: UtcTimestamp): Promise<TriggerDispatch | undefined>;
   add(dispatch: TriggerDispatch): Promise<void>;
   saveFenced(

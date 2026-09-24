@@ -1,14 +1,9 @@
 import { claimInvestigationExecution } from "../../src/core/investigation/investigationModel.js";
-import type { TransactionContext, UnitOfWorkPort } from "../../src/core/storageContracts.js";
-import type { TriggerQueueRecord } from "../../src/core/triggers/triggerModel.js";
+import type { UnitOfWorkPort } from "../../src/core/storageContracts.js";
 import { investigationFixture } from "./investigationFixture.js";
 
 /** Execution adds the claim operation to the same serialized test transaction. */
-export function executionFixture(
-  seed: Parameters<typeof investigationFixture>[0] & {
-    readonly triggers?: readonly TriggerQueueRecord[];
-  } = {},
-) {
+export function executionFixture(seed: Parameters<typeof investigationFixture>[0] = {}) {
   const fixture = investigationFixture(seed);
   const store: UnitOfWorkPort = {
     execute: (work) =>
@@ -26,9 +21,6 @@ export function executionFixture(
               return claimed;
             },
           },
-          triggerQueue: {
-            findById: (id) => Promise.resolve(seed.triggers?.find((item) => item.id === id)),
-          } as TransactionContext["triggerQueue"],
         }),
       ),
   };
