@@ -131,7 +131,8 @@ export function createEvidenceItem(input: CreateEvidenceItemInput): EvidenceItem
 
 export interface EvidenceQuery {
   /** Retrieval filters do not grant access beyond the attempt's approved repositories. */
-  readonly sprintId?: SprintId;
+  /** Null selects unassigned evidence; omission does not filter that context. */
+  readonly sprintId?: SprintId | null;
   readonly taskId?: TaskId | null;
   readonly repositoryId?: RepositoryId;
   readonly source?: EvidenceSource;

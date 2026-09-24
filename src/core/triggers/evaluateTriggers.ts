@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import {
   DomainInvariantError,
+  MAX_REVIEW_REPOSITORIES,
+  MAX_REVIEW_SEED_EVIDENCE,
   normalizeStringList,
   requireInteger,
   requireNonBlank,
@@ -22,8 +24,18 @@ export function evaluateTriggers(context: TriggerContext): readonly TriggerCandi
   const startAt = requireUtcTimestamp(context.sprint.startAt, "sprint.startAt");
   const endAt = requireUtcTimestamp(context.sprint.endAt, "sprint.endAt");
   requireTimestampOrder(startAt, endAt, "sprint.endAt", false);
-  const repositoryIds = canonicalSet(context.repositoryIds, "repositoryIds", 200);
-  const evidenceDigests = canonicalSet(context.evidenceDigests, "evidenceDigests", 512);
+  const repositoryIds = canonicalSet(
+    context.repositoryIds,
+    "repositoryIds",
+    200,
+    MAX_REVIEW_REPOSITORIES,
+  );
+  const evidenceDigests = canonicalSet(
+    context.evidenceDigests,
+    "evidenceDigests",
+    512,
+    MAX_REVIEW_SEED_EVIDENCE,
+  );
   const taskId =
     context.task === undefined ? undefined : requireNonBlank(context.task.id, "task.id", 200);
   const candidates: TriggerCandidate[] = [];
@@ -84,7 +96,12 @@ export function evaluateTriggers(context: TriggerContext): readonly TriggerCandi
       "A Git change was observed.",
       { repositoryId, occurredAt, digest },
       taskId,
-      canonicalSet([...new Set([...evidenceDigests, digest])], "evidenceDigests", 512),
+      canonicalSet(
+        [...new Set([...evidenceDigests, digest])],
+        "evidenceDigests",
+        512,
+        MAX_REVIEW_SEED_EVIDENCE,
+      ),
     );
   }
 
@@ -127,6 +144,9 @@ function canonicalSet(
   values: readonly string[],
   field: string,
   maximumLength: number,
+  maximumCount: number,
 ): readonly string[] {
-  return Object.freeze([...new Set(normalizeStringList(values, field, 100, maximumLength))].sort());
+  return Object.freeze(
+    [...new Set(normalizeStringList(values, field, maximumCount, maximumLength))].sort(),
+  );
 }

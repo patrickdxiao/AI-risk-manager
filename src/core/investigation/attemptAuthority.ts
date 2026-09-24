@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   ApplicationError,
+  MAX_REVIEW_REPOSITORIES,
   normalizeStringList,
   requireInteger,
   requireNonBlank,
@@ -39,7 +40,11 @@ export async function createAttemptAuthority(
   },
 ): Promise<NonNullable<InvestigationAttempt["authority"]>> {
   const repositoryIds = Object.freeze(
-    [...new Set(normalizeStringList(input.repositoryIds, "repositoryIds", 20, 200))].sort(),
+    [
+      ...new Set(
+        normalizeStringList(input.repositoryIds, "repositoryIds", MAX_REVIEW_REPOSITORIES, 200),
+      ),
+    ].sort(),
   );
   for (const id of repositoryIds)
     if ((await store.repositories.findById(id)) === undefined)
