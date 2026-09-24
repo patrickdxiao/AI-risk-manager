@@ -8,6 +8,9 @@ export type FindingId = string;
 export type FindingFeedbackId = string;
 export type UtcTimestamp = string;
 
+export const MAX_REVIEW_REPOSITORIES = 20;
+export const MAX_REVIEW_SEED_EVIDENCE = 50;
+
 export interface ClockPort {
   now(): UtcTimestamp;
 }
@@ -30,7 +33,9 @@ export type ApplicationErrorCode =
   | "attempt_scope_revoked"
   | "execution_lease_lost"
   | "tool_budget_exhausted"
-  | "investigation_budget_exhausted";
+  | "investigation_budget_exhausted"
+  | "repository_not_found"
+  | "investigation_queue_full";
 
 export class ApplicationError extends Error {
   override readonly name = "ApplicationError";

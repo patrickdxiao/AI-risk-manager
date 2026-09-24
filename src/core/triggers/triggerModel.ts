@@ -1,11 +1,13 @@
 import type { TaskState } from "../planning/planningModel.js";
-import type {
-  EvidenceItemId,
-  InvestigationId,
-  RepositoryId,
-  SprintId,
-  TaskId,
-  UtcTimestamp,
+import {
+  requireNonBlank,
+  requireUtcTimestamp,
+  type EvidenceItemId,
+  type InvestigationId,
+  type RepositoryId,
+  type SprintId,
+  type TaskId,
+  type UtcTimestamp,
 } from "../primitives.js";
 
 export type TriggerType =
@@ -97,6 +99,21 @@ export interface TriggerDispatch {
   readonly createdAt: UtcTimestamp;
   readonly updatedAt: UtcTimestamp;
   readonly completedAt?: UtcTimestamp;
+}
+
+/** Persist delivery before any runtime work starts. */
+export function pendingTriggerDispatch(triggerId: string, timestamp: string): TriggerDispatch {
+  const now = requireUtcTimestamp(timestamp, "createdAt");
+  return Object.freeze({
+    version: "trigger-dispatch.v1",
+    triggerId: requireNonBlank(triggerId, "triggerId", 200),
+    status: "pending",
+    leaseVersion: 0,
+    attempts: 0,
+    dueAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 /** One installation-wide queue; a fenced save succeeds only for the expected owner and status. */
