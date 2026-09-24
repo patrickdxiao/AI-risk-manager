@@ -10,6 +10,7 @@ import {
   CreateTask,
   EditTask,
   MAX_OPEN_TASKS,
+  type EditTaskInput,
 } from "../../../src/core/planning/planningService.js";
 import { ApplicationError, DomainInvariantError } from "../../../src/core/primitives.js";
 import { PlanningEntityAlreadyExistsError } from "../../../src/core/storageContracts.js";
@@ -204,6 +205,37 @@ describe("saved tasks", () => {
 });
 
 describe("versioned task edits", () => {
+  it("treats explicit undefined patch fields as omitted without clearing saved task details", async () => {
+    const original = task("task", {
+      state: "done",
+      completionCriteria: ["Formats dollars"],
+      dependencyIds: ["prerequisite"],
+      pathHints: ["web/checkout.ts"],
+      description: "Saved context",
+      startAt: "2026-09-25T00:00:00Z",
+      endAt: "2026-09-26T00:00:00Z",
+    });
+    const prerequisite = task("prerequisite", { state: "done" });
+    const fixture = setup({ sprints: [sprint()], tasks: [prerequisite, original] });
+    const patch = {
+      taskId: original.id,
+      version: original.version,
+      title: "Edited title",
+      state: undefined,
+      points: undefined,
+      description: undefined,
+      completionCriteria: undefined,
+      dependencyIds: undefined,
+      pathHints: undefined,
+      startAt: undefined,
+      endAt: undefined,
+    } as unknown as EditTaskInput;
+    const edited = await fixture.editTask.execute(patch);
+    expect(edited).toEqual({ ...original, title: "Edited title", version: 2 });
+    expect(fixture.tasks()).toEqual([prerequisite, edited]);
+    expect(patch).toHaveProperty("state", undefined);
+  });
+
   it("preserves identity, edits criteria, clears descriptions, and requires explicit valid state changes", async () => {
     const original = task("task", { description: "Old context" });
     const fixture = setup({ sprints: [sprint()], tasks: [original] });
