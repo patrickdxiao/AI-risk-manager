@@ -115,6 +115,11 @@ const USER_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>> = {
   done: ["in_progress"],
 };
 
+/** The dashboard offers the same explicit actions accepted by task edits. */
+export function getUserTaskTransitions(state: TaskState): readonly TaskState[] {
+  return Object.freeze([...USER_TRANSITIONS[state]]);
+}
+
 /** Validate task details after the caller supplies explicit or inherited sprint dates. */
 export function createTask(input: CreateTaskInput & Pick<Task, "startAt" | "endAt">): Task {
   const id = requireNonBlank(input.id, "id", 200);

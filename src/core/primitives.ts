@@ -16,7 +16,12 @@ export interface IdGeneratorPort {
   next(): string;
 }
 
-export type ApplicationErrorCode = "sprint_not_found" | "task_not_found" | "task_version_conflict";
+export type ApplicationErrorCode =
+  | "sprint_not_found"
+  | "task_not_found"
+  | "task_version_conflict"
+  | "finding_not_found"
+  | "finding_feedback_conflict";
 
 export class ApplicationError extends Error {
   override readonly name = "ApplicationError";

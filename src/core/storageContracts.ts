@@ -29,7 +29,7 @@ export type EvidenceIdentity = Pick<
 
 export interface PlanningStore {
   listSprints(): Promise<readonly Sprint[]>;
-  listTasks(): Promise<readonly Task[]>;
+  findOpenTasks(): Promise<readonly Task[]>;
   countOpenTasks(): Promise<number>;
   findActiveSprint(): Promise<Sprint | undefined>;
   findSprintById(id: SprintId): Promise<Sprint | undefined>;

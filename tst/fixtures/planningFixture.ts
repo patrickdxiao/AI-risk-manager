@@ -20,7 +20,8 @@ export function planningFixture(
         const nextTasks = new Map(tasks);
         const planning: PlanningStore = {
           listSprints: () => Promise.resolve([...nextSprints.values()]),
-          listTasks: () => Promise.resolve([...nextTasks.values()]),
+          findOpenTasks: () =>
+            Promise.resolve([...nextTasks.values()].filter((task) => task.state !== "done")),
           countOpenTasks: () =>
             Promise.resolve([...nextTasks.values()].filter((task) => task.state !== "done").length),
           findActiveSprint: () =>

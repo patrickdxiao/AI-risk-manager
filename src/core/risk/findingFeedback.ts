@@ -59,14 +59,8 @@ export function createFindingFeedback(input: FindingFeedback): FindingFeedback {
   });
 }
 
-export interface SubmitFindingFeedbackInput {
-  readonly findingId: FindingId;
-  readonly kind: FindingFeedbackKind;
-  readonly note?: string;
-  readonly correction?: FindingFeedbackCorrection;
-  readonly actor: string;
-  readonly source: string;
-}
+/** The caller retains the ID across retries of the same feedback action. */
+export type SubmitFindingFeedbackInput = Omit<FindingFeedback, "createdAt">;
 
 export interface SubmitFindingFeedbackResult {
   readonly status: "recorded" | "existing";

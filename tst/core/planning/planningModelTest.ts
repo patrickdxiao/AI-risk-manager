@@ -302,6 +302,7 @@ describe("planning without project grouping", () => {
     }>();
     expectTypeOf<{ repositoryId: "web"; limit: 20 }>().toExtend<EvidenceQuery>();
     expectTypeOf<{
+      id: "correction-request";
       findingId: "checkout-finding";
       kind: "correct";
       correction: { statement: "The prerequisite was completed in the previous sprint" };
