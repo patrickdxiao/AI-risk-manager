@@ -1,6 +1,9 @@
 import type { EvidenceItem, EvidenceQuery } from "../../src/core/evidence/evidenceModel.js";
 import type { Sprint, Task } from "../../src/core/planning/planningModel.js";
-import type { Repository } from "../../src/core/repository/repositoryModel.js";
+import type {
+  Repository,
+  RepositoryObservation,
+} from "../../src/core/repository/repositoryModel.js";
 import type {
   SubmittedInvestigationResult,
   TransactionContext,
@@ -22,6 +25,7 @@ export function reviewQueueFixture(
     readonly reviews?: readonly SubmittedInvestigationResult[];
     readonly triggers?: readonly TriggerQueueRecord[];
     readonly dispatches?: readonly TriggerDispatch[];
+    readonly observations?: readonly RepositoryObservation[];
   } = {},
 ) {
   let triggers = new Map(seed.triggers?.map((item) => [item.id, item]));
@@ -29,6 +33,7 @@ export function reviewQueueFixture(
   let previous: Promise<unknown> = Promise.resolve();
   let rejectDispatch = false;
   const evidence = [...(seed.evidence ?? [])];
+  const observations = new Map(seed.observations?.map((item) => [item.repositoryId, item]));
   function scope(value: TriggerCooldownScope): string {
     return JSON.stringify([value.type, value.sprintId, value.taskId ?? null, value.repositoryIds]);
   }
@@ -70,6 +75,9 @@ export function reviewQueueFixture(
           repositories: {
             findById: (id: string) =>
               Promise.resolve(seed.repositories?.find((item) => item.id === id)),
+          },
+          repositoryObservations: {
+            findByRepositoryId: (id: string) => Promise.resolve(observations.get(id)),
           },
           evidence: {
             findById: (id: string) => Promise.resolve(evidence.find((item) => item.id === id)),
@@ -144,6 +152,9 @@ export function reviewQueueFixture(
     dispatches: () => [...dispatches.values()],
     addEvidence: (item: EvidenceItem) => {
       evidence.push(item);
+    },
+    saveObservation: (item: RepositoryObservation) => {
+      observations.set(item.repositoryId, item);
     },
     failDispatch: (value = true) => {
       rejectDispatch = value;

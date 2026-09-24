@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createEvidenceItem, type EvidenceItem } from "../../../src/core/evidence/evidenceModel.js";
 import { createSprint, createTask, type Task } from "../../../src/core/planning/planningModel.js";
-import { createRepository } from "../../../src/core/repository/repositoryModel.js";
+import {
+  createRepository,
+  type RepositoryObservation,
+} from "../../../src/core/repository/repositoryModel.js";
 import {
   ApplicationError,
   DomainInvariantError,
@@ -75,6 +78,29 @@ const candidate = (overrides: Partial<TriggerCandidate> = {}): TriggerCandidate 
 });
 const planCandidate = (key = "plan") =>
   candidate({ type: "plan_changed", repositoryIds: [], evidenceDigests: [], dedupKey: key });
+function observation(evidenceIds = ["e1"], digest = "snapshot"): RepositoryObservation {
+  return {
+    repositoryId: "web",
+    observedAt: now,
+    evidenceIds,
+    snapshot: {
+      rootPath: "/approved/web",
+      head: "head",
+      branch: "main",
+      detached: false,
+      snapshotDigest: digest,
+      status: {
+        clean: true,
+        stagedCount: 0,
+        unstagedCount: 0,
+        untrackedCount: 0,
+        totalPathCount: 0,
+        paths: [],
+        pathsTruncated: false,
+      },
+    },
+  };
+}
 const seedRecord = (id: string): TriggerQueueRecord => ({
   ...planCandidate(id),
   version: "trigger-queue-record.v1",
@@ -89,6 +115,7 @@ function setup(seed: Parameters<typeof reviewQueueFixture>[0] = {}) {
     sprints: [sprint],
     repositories: [repository("web"), repository("api")],
     evidence: [evidence()],
+    observations: [observation()],
     ...seed,
   });
   let sequence = 0;
@@ -494,13 +521,14 @@ describe("stored trigger evaluation", () => {
     ).toBe("2026-09-24T12:00:00.000Z");
   });
 
-  it("selects reusable repository observations without letting newer planning hints hide them", async () => {
+  it("selects the saved observation seeds rather than unrelated newer evidence", async () => {
     const fixture = setup({
       evidence: [
         evidence("shared", { occurredAt: "2026-09-24T11:30:00Z" }),
         evidence("sprint-hint", { sprintId: "old-sprint" }),
         evidence("task-hint", { taskId: "other-task" }),
       ],
+      observations: [observation(["shared"])],
     });
     const result = await fixture.evaluate.execute({ repositoryIds: ["web"], cooldownMinutes: 30 });
     expect(result.queued.find((item) => item.type === "git_change")?.evidenceCitations).toEqual([
@@ -512,6 +540,7 @@ describe("stored trigger evaluation", () => {
     const fixture = setup();
     await fixture.evaluate.execute({ repositoryIds: ["web"], cooldownMinutes: 30 });
     fixture.addEvidence(evidence("e2", { digest: "e1" }));
+    fixture.saveObservation(observation(["e2"], "changed-snapshot"));
     const changed = await fixture.evaluate.execute({ repositoryIds: ["web"], cooldownMinutes: 30 });
     expect(changed.queued).toMatchObject([
       { type: "git_change", evidenceCitations: [{ evidenceId: "e2", digest: "e1" }] },
