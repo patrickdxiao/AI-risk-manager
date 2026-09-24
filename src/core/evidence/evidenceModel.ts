@@ -59,6 +59,7 @@ export interface CreateEvidenceItemInput extends Omit<EvidenceItem, "occurredAt"
   readonly occurredAt: string;
 }
 
+/** Repository-derived observations must retain their top-level origin. */
 export function requiresRepositoryId(item: Pick<EvidenceItem, "source" | "kind">): boolean {
   return item.source === "git" || repositoryEvidenceKinds.some((kind) => kind === item.kind);
 }
