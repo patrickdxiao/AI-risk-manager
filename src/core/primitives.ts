@@ -39,7 +39,8 @@ export type ApplicationErrorCode =
   | "investigation_queue_full"
   | "investigation_result_conflict"
   | "investigation_input_changed"
-  | "invalid_coverage";
+  | "invalid_coverage"
+  | "investigation_execution_failed";
 
 export class ApplicationError extends Error {
   override readonly name = "ApplicationError";

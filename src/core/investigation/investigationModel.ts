@@ -244,9 +244,11 @@ export interface InvestigationRuntimePort {
 
 export interface RunInvestigationInput {
   readonly prompt: string;
-  readonly attemptId?: string;
-  readonly timeoutMs?: number;
-  readonly signal?: AbortSignal;
+  readonly attemptId: string;
+  /** Opaque credential passed to the tool adapter, never included in the model prompt. */
+  readonly attemptToken: string;
+  readonly timeoutMs: number;
+  readonly signal: AbortSignal;
 }
 
 export interface RuntimeUsageObservation {
