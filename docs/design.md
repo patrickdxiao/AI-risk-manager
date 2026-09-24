@@ -40,7 +40,7 @@ It's easy to lose track of blockers, at-risk work, and dependencies across multi
   Each attempt retains an explicit repository allowlist, credential, deadline, and tool-call budget.
   Evidence filters and task dependencies do not grant additional repository access.
 
-This revision defines these contracts only.
+The current code defines these contracts and validates sprint/task records and state transitions.
 The services, storage, and dashboard described below must implement this model in subsequent changes.
 
 ```mermaid
