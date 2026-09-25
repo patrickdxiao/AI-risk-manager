@@ -76,3 +76,29 @@ The four POST endpoints receive direct JSON arguments: `{}` for context, `{ "evi
 CLI stdout/stderr and tool responses are bounded. Cancellation kills local CLI waiting and requests a best-effort Gateway abort, but does not prove that remote provider work stopped or that its cost is settled. Only reported token counters are retained; absent counters and cost remain unknown. Invalid model answers retain available run telemetry and are rejected by the application.
 
 Compatibility was checked against the installed package's Gateway schemas, tool-factory signatures and hook types, plus the official [plugin guide](https://docs.openclaw.ai/plugins/building-plugins), [tool registration reference](https://docs.openclaw.ai/plugins/sdk-overview/tools-and-commands), [hook reference](https://docs.openclaw.ai/plugins/hooks/prompt-and-session), and [CLI reference](https://docs.openclaw.ai/cli/agent). Current online documentation describes newer versions too; upgrade this pin only after rechecking the actual installed contracts. Tests use synthetic responses, real local HTTP requests and child processes. An isolated native inspection loaded the built `dist/plugin/index.js` in OpenClaw 2026.7.1-2 with status `loaded`, exactly four risk tools, three hooks, and no diagnostics, without starting a Gateway or invoking a model. These checks do not establish model accuracy or remote cancellation guarantees.
+
+## Keep a dedicated local profile
+
+An isolated profile avoids changing an existing Gateway or the user's global OpenClaw config. Create a private directory such as `~/.development-risk-agent/openclaw` for OpenClaw state and a separate empty workspace. Save the configuration above as `~/.development-risk-agent/risk-openclaw.json`, with `gateway.mode` set to `local`, a private Gateway bearer token, and Gateway port `4319`. The plugin's API URL remains `http://127.0.0.1:4317`.
+
+Set the dedicated agent's `agentDir` to `~/.development-risk-agent/openclaw/agents/risk-investigator/agent` using an absolute expanded path. Configure provider authentication for that isolated agent through OpenClaw's normal auth flow, or explicitly import an authorized current profile into its private credential store. Do not put provider credentials in this repository or share the entire agent directory with another agent. OAuth credentials can expire and may require renewal in the same isolated profile.
+
+Run these in separate terminals, after building the final checkout. Replace the state path if needed, and use the same environment in both terminals:
+
+```sh
+RISK_STATE="$HOME/.development-risk-agent"
+OPENCLAW_STATE_DIR="$RISK_STATE/openclaw" \
+OPENCLAW_CONFIG_PATH="$RISK_STATE/risk-openclaw.json" \
+  openclaw gateway run --port 4319 --bind loopback
+```
+
+```sh
+RISK_STATE="$HOME/.development-risk-agent"
+OPENCLAW_STATE_DIR="$RISK_STATE/openclaw" \
+OPENCLAW_CONFIG_PATH="$RISK_STATE/risk-openclaw.json" \
+  pnpm gateway --state-dir "$RISK_STATE" --openclaw-agent risk-investigator
+```
+
+Use the final checkout's absolute `dist/plugin` path in the profile. Stop both foreground commands when finished; no daemon or global configuration change is required. Ordinary `pnpm gateway` continues to keep provider calls disabled unless the explicit agent option or its documented environment default is supplied.
+
+The opt-in [live evaluation](evaluation.md) runs the same built application, plugin, and Gateway against synthetic fixtures. Native Codex hook names in this pinned version can include an `openclaw` prefix; the plugin accepts only the four exact aliases and charges the actual bare-name invocation once, while the HTTP service independently charges every authenticated read.
