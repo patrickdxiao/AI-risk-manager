@@ -68,5 +68,16 @@ export default tseslint.config(
     // node:sqlite is synchronous; async methods implement the shared storage ports.
     rules: { "@typescript-eslint/require-await": "off" },
   },
+  {
+    files: ["src/dashboard/dashboard.js"],
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        URLSearchParams: "readonly",
+        FormData: "readonly",
+      },
+    },
+  },
   prettier,
 );
