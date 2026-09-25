@@ -64,3 +64,4 @@ Tests exercise real temporary Git repositories, SQLite transactions and recovery
 The built OpenClaw plugin also passes native registration checks without provider calls.
 These checks do not establish model accuracy, abrupt-crash durability, OS sandbox isolation, or production latency.
 See [the design](docs/design.md) for access boundaries, remaining limitations, and separately labeled historical POC evidence.
+Run `pnpm benchmark` for a provider-free local HTTP measurement; [verification notes](docs/verification.md) describe the workload and measured limits.
