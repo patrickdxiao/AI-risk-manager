@@ -116,6 +116,25 @@ describe("four-tool OpenClaw plugin", () => {
     f.remove();
     expect(finalize?.(event, f.context)).toEqual({ action: "continue" });
   });
+  it("permits only exact Codex relay aliases without double-charging the real tool call", () => {
+    const f = setup();
+    const call = f.hooks.get("before_tool_call");
+    for (const name of ["openclawexec", "openclawrisk_get_context_extra", "otherrisk_get_context"])
+      expect(call?.({ toolName: name }, f.context)).toMatchObject({ block: true });
+    for (let round = 0; round < 3; round++)
+      for (const name of INVESTIGATOR_TOOL_NAMES) {
+        expect(call?.({ toolName: `openclaw${name}` }, f.context)).toBeUndefined();
+        expect(call?.({ toolName: name }, f.context)).toBeUndefined();
+      }
+    expect(call?.({ toolName: "openclawrisk_get_context" }, f.context)).toMatchObject({
+      block: true,
+    });
+    f.hooks.get("agent_end")?.({}, f.context);
+    f.remove();
+    expect(call?.({ toolName: "openclawrisk_get_context" }, f.context)).toMatchObject({
+      block: true,
+    });
+  });
   it("rejects unsupported result mutations and missing risk support before finalization", () => {
     expect(investigationResultSchema.safeParse(answer).success).toBe(true);
     for (const value of [

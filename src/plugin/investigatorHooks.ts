@@ -47,9 +47,14 @@ export function registerInvestigatorHooks(
       const credential = credentials.load(context.sessionKey ?? "");
       for (const [key, value] of calls) if (value.expiresAt <= Date.now()) calls.delete(key);
       const count = calls.get(credential.sessionKey)?.count ?? 0;
-      if (!(INVESTIGATOR_TOOL_NAMES as readonly string[]).includes(event.toolName) || count >= 12)
-        return denied;
-      calls.set(credential.sessionKey, { count: count + 1, expiresAt: credential.expiresAt });
+      const name = INVESTIGATOR_TOOL_NAMES.find(
+        (name) => event.toolName === name || event.toolName === `openclaw${name}`,
+      );
+      if (name === undefined || count >= 12) return denied;
+      // The pinned Codex relay first checks an OpenClaw-prefixed alias; the real tool runs
+      // the same hook with its bare name. Charge that invocation once, then the API charges it.
+      if (event.toolName === name)
+        calls.set(credential.sessionKey, { count: count + 1, expiresAt: credential.expiresAt });
       return undefined;
     } catch {
       return denied;
