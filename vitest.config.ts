@@ -5,7 +5,7 @@ export default defineConfig({
     include: ["tst/**/*Test.ts"],
     coverage: {
       reporter: ["text", "json", "html"],
-      include: ["src/**/*.ts"],
+      include: ["src/**/*.ts", "src/dashboard/**/*.js"],
       thresholds: { branches: 90, functions: 90, lines: 90, statements: 90 },
     },
   },
