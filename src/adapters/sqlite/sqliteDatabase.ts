@@ -53,7 +53,7 @@ export class SQLiteStateError extends Error {
 const SQLITE_FILE_SUFFIXES = ["", "-wal", "-shm", "-journal"] as const;
 
 /** Rejects nonregular, symbolic, or hard-linked database and journal files. */
-function inspectSQLiteFiles(path: string): Map<string, Stats> {
+export function inspectSQLiteFiles(path: string): Map<string, Stats> {
   const files = new Map<string, Stats>();
   for (const suffix of SQLITE_FILE_SUFFIXES) {
     const filename = path + suffix;

@@ -52,6 +52,32 @@ Immutable receipts and ownership checks prevent stale attempts from replacing ac
 Changed planning inputs invalidate an earlier healthy assessment.
 Missing token usage or cost stays unknown, and cancellation does not guarantee that remote spending stops.
 
+## Back up and restore state
+
+After `pnpm build`, create a private backup folder outside monitored repositories and choose a new snapshot filename:
+
+```sh
+mkdir -m 700 "$HOME/development-risk-backups"
+node dist/adapters/sqlite/stateSnapshot.js "$HOME/.development-risk-agent/state.sqlite" "$HOME/development-risk-backups/snapshot.sqlite"
+```
+
+The command uses [SQLite's online backup API](https://nodejs.org/api/sqlite.html#sqlitebackupsourcedb-path-options) to include committed WAL data, checks the schema and integrity, and refuses an existing destination.
+It can read live application state; do not copy only a live `state.sqlite` file or its sidecars yourself.
+Snapshots contain saved plans, selected evidence, answers, and review history, so keep them private.
+
+To restore, stop the original application and its investigator, then choose a fresh state directory:
+
+```sh
+mkdir -m 700 "$HOME/.development-risk-agent-restored"
+node dist/adapters/sqlite/stateSnapshot.js "$HOME/development-risk-backups/snapshot.sqlite" "$HOME/.development-risk-agent-restored/state.sqlite"
+env -u DEVELOPMENT_RISK_OPENCLAW_AGENT pnpm start --state-dir "$HOME/.development-risk-agent-restored"
+```
+
+Check the restored plans and citations with AI reviews disabled before configuring an investigator again.
+Local API tokens and session credential files are not copied; the new state directory generates a fresh sign-in credential.
+Saved pending reviews, attempt credential hashes, leases, and unknown usage reservations remain in the snapshot: restoring does not revoke remote attempts or recover work performed after the snapshot.
+Expired leases recover when reviews are enabled; do not run the original and restored copies together.
+
 ## Verify changes
 
 ```sh
