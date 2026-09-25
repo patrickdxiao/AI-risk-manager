@@ -380,6 +380,8 @@ function runtimeMetadata(runtime: InvestigationRuntimeRun, token: string) {
     runtimeSessionId: runtime.sessionId,
     runtimeSessionKey: runtime.sessionKey,
     runtimeVersion: runtime.runtimeVersion,
+    promptVersion: runtime.promptVersion,
+    resultSchemaVersion: runtime.resultSchemaVersion,
     provider: runtime.provider,
     model: runtime.model,
   };

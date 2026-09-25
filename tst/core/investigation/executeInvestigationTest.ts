@@ -162,6 +162,8 @@ describe("scoped investigation execution", () => {
         provider: "provider",
         model: "model",
         runtimeVersion: "runtime1",
+        promptVersion: "development-risk.investigator.v2",
+        resultSchemaVersion: "provider-result.v2",
         sessionKey: "session-key",
       }),
     );
@@ -176,6 +178,8 @@ describe("scoped investigation execution", () => {
         status: "succeeded",
         runtimeRunId: "run",
         runtimeSessionKey: "session-key",
+        promptVersion: "development-risk.investigator.v2",
+        resultSchemaVersion: "provider-result.v2",
         provider: "provider",
         model: "model",
         authority: { toolCalls: 1 },
