@@ -460,6 +460,57 @@ describe("scoped investigation execution", () => {
     expect(pending.attempts()[0]?.usage).toBeUndefined();
   });
 
+  it.each(["success", "invalid", "abort", "throw"] as const)(
+    "clears both deadline timers after %s",
+    async (outcome) => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      const fixture = setup(
+        {},
+        {
+          runInvestigation: () => {
+            if (outcome === "throw") throw new Error("Runtime startup failed");
+            if (outcome === "abort") controller.abort();
+            return Promise.resolve(
+              outcome === "invalid"
+                ? answer({ structuredResult: { version: "1", findings: [] } })
+                : answer(),
+            );
+          },
+        },
+      );
+      const result = fixture.execute.execute(baseInput({ signal: controller.signal }));
+      if (outcome === "success")
+        await expect(result).resolves.toMatchObject({ status: "submitted" });
+      else await expect(result).rejects.toThrow();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each(["backward", "invalid", "throw"] as const)(
+    "does not extend local waiting or saved authority when the wall clock is %s",
+    async (mode) => {
+      vi.useFakeTimers();
+      const runtime = runtimeHarness();
+      const fixture = setup({}, runtime.runtime);
+      const execution = fixture.execute.execute(baseInput({ timeoutMs: 60_000 }));
+      const rejected = expect(execution).rejects.toThrow();
+      const input = await runtime.started;
+      const leaseUntil = fixture.attempts()[0]?.leaseUntil;
+      vi.spyOn(fixture.clock, "now").mockImplementation(() => {
+        if (mode === "throw") throw new Error("Clock unavailable");
+        return mode === "invalid" ? "not a timestamp" : before;
+      });
+      await vi.advanceTimersByTimeAsync(mode === "backward" ? 60_000 : 30_000);
+      await rejected;
+      expect(input.signal.aborted).toBe(true);
+      expect(fixture.attempts()[0]?.leaseUntil).toBe(leaseUntil);
+      expect(fixture.attempts()[0]?.authority?.reservedTokens).toBe(ATTEMPT_TOKEN_RESERVATION);
+      expect(fixture.receipts()).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
   it.each([
     answer({ structuredResult: undefined } as unknown as Partial<InvestigationRuntimeRun>),
     answer({ usage: { totalTokens: -1 } }),

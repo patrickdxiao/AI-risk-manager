@@ -302,6 +302,8 @@ export class ExecuteInvestigation {
         this.runtime,
         { prompt, attemptId: attempt.id, attemptToken: token, timeoutMs: remaining },
         signal,
+        this.clock,
+        Date.parse(attempt.leaseUntil) - FINALIZATION_GRACE_MS,
       );
       phase = "validation";
       usage = normalizeInvestigationUsage(runtime.usage);
@@ -434,7 +436,9 @@ function leaseLost(): ApplicationError {
 async function runBounded(
   runtime: InvestigationRuntimePort,
   input: Omit<RunInvestigationInput, "signal">,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  clock: ClockPort,
+  deadline: number,
 ): Promise<InvestigationRuntimeRun> {
   const controller = new AbortController();
   let rejectStop: ((error: Error) => void) | undefined;
@@ -452,6 +456,20 @@ async function runBounded(
   const timer = setTimeout(() => {
     stop("runtime_timeout", true);
   }, input.timeoutMs);
+  // Relative timers can pause with the machine. Recheck persisted wall time after resume;
+  // keep the original timeout too, so a backward clock adjustment cannot extend local waiting.
+  const deadlineTimer = setInterval(
+    () => {
+      try {
+        const now = Date.parse(clock.now());
+        if (Number.isFinite(now) && now < deadline) return;
+      } catch {
+        /* A failed clock cannot keep provider waiting alive. */
+      }
+      stop("runtime_timeout", true);
+    },
+    Math.min(input.timeoutMs, 30_000),
+  );
   signal?.addEventListener("abort", onCancel, { once: true });
   try {
     if (signal?.aborted === true) {
@@ -468,6 +486,7 @@ async function runBounded(
     ]);
   } finally {
     clearTimeout(timer);
+    clearInterval(deadlineTimer);
     signal?.removeEventListener("abort", onCancel);
   }
 }
