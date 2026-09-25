@@ -63,5 +63,10 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["src/adapters/sqlite/*Store.ts"],
+    // node:sqlite is synchronous; async methods implement the shared storage ports.
+    rules: { "@typescript-eslint/require-await": "off" },
+  },
   prettier,
 );
