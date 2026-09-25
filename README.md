@@ -92,4 +92,5 @@ The built OpenClaw plugin also passes native registration checks without provide
 Clock-gap tests exercise expired leases and scheduler recovery; they do not suspend the operating system.
 These checks do not establish model accuracy, power-loss durability, OS sandbox isolation, or production latency.
 See [the design](docs/design.md) for access boundaries, remaining limitations, and separately labeled historical POC evidence.
-Run `pnpm benchmark` for a provider-free local HTTP measurement; [verification notes](docs/verification.md) describe the workload and measured limits.
+Run `pnpm benchmark` for a provider-free local HTTP measurement; [verification notes](docs/verification.md) cover the measured workload, browser checks, and recovery drills.
+The separate [live evaluation](docs/evaluation.md) records three synthetic provider-backed reviews, reported usage, and the limits of those results.
