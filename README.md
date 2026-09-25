@@ -19,8 +19,9 @@ Open the one-use sign-in link printed in the terminal.
 The service listens on `127.0.0.1:4317` and saves SQLite state and local credentials in `~/.development-risk-agent`, outside monitored repositories.
 Older prototype database formats are rejected; there is no automatic migration.
 Use `--state-dir /absolute/path/to/new-state` to start with a fresh directory while retaining existing state.
-The browser removes the sign-in fragment and keeps its session credential in memory.
-After a page reload, an expired session, or a used sign-in link, stop the service with Ctrl+C and run the same command again to get a fresh link; saved plans and findings remain in the same state directory.
+The browser removes the sign-in fragment and keeps its expiring session credential in tab-scoped session storage, so reloading stays signed in. Repository checkboxes still reset to plan-only after a reload.
+For an expired session, another tab, or a used link, keep the service running and run `pnpm dashboard` in another terminal in this checkout to print a fresh one-use link. If you started with custom settings, use the same values, for example `pnpm dashboard --state-dir /absolute/path/to/app-state --port 4318`.
+Browser sessions expire after 12 hours or a service restart. If the browser blocks session storage, the current page still works; use `pnpm dashboard` again after reloading. The permanent local API credential stays on disk and is never copied into browser storage.
 
 Use `pnpm gateway --state-dir /absolute/path/to/app-state --port 4318` to change the location or port.
 `DEVELOPMENT_RISK_STATE_DIR` and `DEVELOPMENT_RISK_API_PORT` supply defaults; explicit flags take precedence.

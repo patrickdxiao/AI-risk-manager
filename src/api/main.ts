@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { SQLiteStateError } from "../adapters/sqlite/sqliteDatabase.js";
 import { startLocalApi, type StartedLocalApi } from "./apiListener.js";
 import { LocalTokenError } from "./apiToken.js";
+import { requestDashboardLink } from "./dashboardLink.js";
 import { DEFAULT_API_PORT } from "./httpServer.js";
 const STATE_DIRECTORY_MAX_LENGTH = 4_096;
 const STATE_DIRECTORY_ENV = "DEVELOPMENT_RISK_STATE_DIR";
@@ -14,10 +15,12 @@ const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 const HELP = `Usage:
   pnpm gateway [--state-dir PATH] [--port PORT] [--openclaw-agent ID]
   pnpm start [--state-dir PATH] [--port PORT]
+  pnpm dashboard [--state-dir PATH] [--port PORT]
   pnpm gateway --help
 
 Starts the dashboard and authenticated API on localhost (127.0.0.1:4317).
 The command prints a one-use sign-in link.
+pnpm dashboard prints a fresh link for the running app without restarting it.
 State defaults to ~/.development-risk-agent. --port 0 selects an available port.
 Environment defaults: DEVELOPMENT_RISK_STATE_DIR and DEVELOPMENT_RISK_API_PORT.
 --openclaw-agent ID enables investigations with a separately configured dedicated OpenClaw agent.
@@ -28,6 +31,7 @@ export interface LocalApiMainOptions {
   readonly stateDir: string;
   readonly port: number;
   readonly investigationAgentId?: string;
+  readonly signInLink?: true;
 }
 
 export interface MainSignalSource {
@@ -37,6 +41,7 @@ export interface MainSignalSource {
 
 export interface RunMainDependencies {
   readonly start: typeof startLocalApi;
+  readonly requestLink?: typeof requestDashboardLink;
   readonly stdout: (line: string) => void;
   readonly stderr: (line: string) => void;
   readonly signals: MainSignalSource;
@@ -57,11 +62,14 @@ export function parseMainOptions(
   let portText = env[PORT_ENV];
   let investigationAgentId = env[INVESTIGATOR_ENV];
   const gateway = argv[0] === "gateway";
+  let signInLink = false;
 
   for (let index = gateway ? 1 : 0; index < argv.length; index += 1) {
     const argument = argv[index];
     const value = argv[index + 1];
-    if (argument === "--state-dir" && value !== undefined) {
+    if (argument === "--sign-in-link") {
+      signInLink = true;
+    } else if (argument === "--state-dir" && value !== undefined) {
       stateDir = value;
       index += 1;
     } else if (argument === "--port" && value !== undefined) {
@@ -103,6 +111,7 @@ export function parseMainOptions(
   return Object.freeze({
     stateDir: resolve(stateDir),
     port,
+    ...(signInLink ? { signInLink: true as const } : {}),
     ...(investigationAgentId === undefined ? {} : { investigationAgentId }),
   });
 }
@@ -144,6 +153,11 @@ export async function runMain(
   for (const signal of SHUTDOWN_SIGNALS) dependencies.signals.once(signal, shutdown);
   try {
     const options = parseMainOptions(argv, dependencies.env ?? {});
+    if (options.signInLink) {
+      dependencies.stdout(await (dependencies.requestLink ?? requestDashboardLink)(options));
+      removeSignalHandlers();
+      return undefined;
+    }
     const startedService = await dependencies.start({
       ...options,
       writeLine: dependencies.stdout,
@@ -164,7 +178,11 @@ export async function runMain(
       error instanceof LocalTokenError || error instanceof SQLiteStateError
         ? ` (${error.code})`
         : "";
-    dependencies.stderr(`Failed to start local API${reason}`);
+    dependencies.stderr(
+      argv.includes("--sign-in-link")
+        ? `Could not get a sign-in link${reason}. Check the running app, state directory, and port.`
+        : `Failed to start local API${reason}`,
+    );
     dependencies.exitCode(1);
     return undefined;
   }

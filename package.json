@@ -18,7 +18,8 @@
     "typecheck": "tsc",
     "start": "node dist/api/main.js",
     "gateway": "pnpm build && node dist/api/main.js",
-    "benchmark": "pnpm build && node scripts/benchmark.mjs"
+    "benchmark": "pnpm build && node scripts/benchmark.mjs",
+    "dashboard": "node dist/api/main.js --sign-in-link"
   },
   "devDependencies": {
     "@eslint/js": "9.34.0",

@@ -63,6 +63,22 @@ export function registerDashboardRoutes(
     });
   }
 
+  // The API authentication hook permits only the durable local owner's credential here.
+  server.post("/api/ui/sign-in-link", async (request, reply) => {
+    const origin = localOrigin(request);
+    if (origin === undefined || !hasSameOrigin(request, origin)) return sendForbidden(reply);
+    if (
+      typeof request.body !== "object" ||
+      request.body === null ||
+      Array.isArray(request.body) ||
+      Object.keys(request.body).length !== 0
+    )
+      return sendError(reply, 400, "validation_error", "Expected an empty request");
+    reply.header("Cache-Control", "no-store");
+    reply.header("Referrer-Policy", "no-referrer");
+    return options.auth.issueBootstrapUrl(origin);
+  });
+
   server.post(BOOTSTRAP_PATH, async (request, reply) => {
     const origin = localOrigin(request);
     if (origin === undefined || !hasSameOrigin(request, origin)) return sendForbidden(reply);

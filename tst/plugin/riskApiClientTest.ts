@@ -34,6 +34,7 @@ describe("loopback risk tool client", () => {
       if (typeof address !== "object" || address === null) throw new Error("No port");
       const client = new RiskApiClient({
         ...options,
+        timeoutMs: 2_000,
         apiBaseUrl: `http://127.0.0.1:${String(address.port)}`,
       });
       expect(await client.invokeTool("risk_get_evidence", { evidenceIds: ["stored"] })).toEqual({

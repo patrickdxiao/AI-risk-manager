@@ -73,6 +73,51 @@ describe("main", () => {
   });
 
   describe("runMain", () => {
+    it("prints a renewed one-use link without starting or restarting the service", async () => {
+      const start = vi.fn<RunMainDependencies["start"]>();
+      const requestLink = vi
+        .fn<NonNullable<RunMainDependencies["requestLink"]>>()
+        .mockResolvedValue("http://127.0.0.1:4321/#bootstrap=one-use");
+      const stdout = vi.fn<(line: string) => void>();
+      const stderr = vi.fn<(line: string) => void>();
+      const signals = new FakeSignalSource();
+      const exitCode = vi.fn<(code: number) => void>();
+      await runMain({
+        start,
+        requestLink,
+        stdout,
+        stderr,
+        signals,
+        exitCode,
+        argv: ["--sign-in-link", "--state-dir", "../private-state", "--port", "4321"],
+        env: {},
+      });
+      expect(start).not.toHaveBeenCalled();
+      expect(requestLink).toHaveBeenCalledWith({
+        stateDir: resolve("../private-state"),
+        port: 4321,
+        signInLink: true,
+      });
+      expect(stdout).toHaveBeenCalledWith("http://127.0.0.1:4321/#bootstrap=one-use");
+      expect(signals.activeCount()).toBe(0);
+      requestLink.mockRejectedValue(new Error("private token details"));
+      await runMain({
+        start,
+        requestLink,
+        stdout,
+        stderr,
+        signals,
+        exitCode,
+        argv: ["--sign-in-link"],
+        env: {},
+      });
+      expect(stderr).toHaveBeenLastCalledWith(
+        "Could not get a sign-in link. Check the running app, state directory, and port.",
+      );
+      expect(exitCode).toHaveBeenCalledWith(1);
+      expect(signals.activeCount()).toBe(0);
+    });
+
     it.each([
       ["--help"],
       ["help"],
