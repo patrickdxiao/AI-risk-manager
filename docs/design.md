@@ -41,9 +41,11 @@ Git and provider calls happen outside write transactions.
 The core depends on ports so domain behavior can also be tested with deterministic clocks, in-memory stores, and scripted runtimes.
 
 The service binds to IPv4 loopback and requires a local-user bearer credential for application endpoints.
-A one-use browser link exchanges its URL fragment for a session credential kept only in memory.
+A one-use browser link exchanges its URL fragment for a 12-hour session credential retained in tab-scoped session storage, allowing reloads without signing in again.
 The four investigator endpoints require a separate attempt credential; it cannot read dashboard endpoints or full local receipts.
-Reloading the browser requires a fresh sign-in link, currently obtained by restarting the service with the same state directory.
+Expired sessions, service restarts, and new tabs can get a fresh link through `pnpm dashboard` without restarting the service.
+That command reads the existing private owner credential and calls an owner-only same-origin endpoint; browser and attempt credentials cannot mint new links.
+Malformed or expired tab data is discarded, failed authentication clears it, and blocked browser storage falls back to the current page's in-memory session. No permanent bearer is stored in a URL or browser storage.
 
 ## Planning and repository scope
 

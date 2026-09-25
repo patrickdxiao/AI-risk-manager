@@ -68,6 +68,16 @@ export async function ensureLocalToken(stateDir: string): Promise<string> {
   return (await readTokenIfPresent(tokenPath)) ?? failMissingPublishedToken();
 }
 
+/** Read an existing owner's credential without creating state or changing file permissions. */
+export async function readLocalToken(stateDir: string): Promise<string> {
+  const directory = resolve(stateDir);
+  await assertPrivateDirectory(directory);
+  await assertOutsideRepository(await realpath(directory));
+  return (
+    (await readTokenIfPresent(resolve(directory, LOCAL_TOKEN_FILE))) ?? failMissingPublishedToken()
+  );
+}
+
 /** Create private state outside repositories, even when the caller supplies its own token. */
 export async function ensureLocalStateDirectory(stateDir: string): Promise<string> {
   const requestedDirectory = resolve(stateDir);

@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { DASHBOARD_CLIENT_JS, DASHBOARD_HTML } from "../../src/dashboard/dashboardRoutes.js";
 
+const browserToken = "t".repeat(43);
+const sessionKey = "development-risk.session";
 type Body = Record<string, unknown>;
 type Request = { path: string; method: string; body?: Body; headers?: Body };
 type Handler = (request: Request) => unknown;
@@ -75,7 +77,7 @@ describe("dashboard user flow", () => {
     expect(client.events[0]).toBe("fragment-cleared");
     expect(client.requests[0]?.path).toBe("/api/ui/bootstrap");
     expect(client.requests[0]?.headers).not.toHaveProperty("Authorization");
-    expect(client.requests[1]?.headers).toHaveProperty("Authorization", "Bearer synthetic-token");
+    expect(client.requests[1]?.headers).toHaveProperty("Authorization", `Bearer ${browserToken}`);
     expect(client.stored()).toBe(sprint.id);
     expect(client.content("repository-list")).toContain("/approved/web");
     expect(client.content("scope-summary")).toContain("plan context only");
@@ -86,6 +88,87 @@ describe("dashboard user flow", () => {
       repositoryIds: [],
       requestId: expect.any(String) as unknown,
     });
+  });
+
+  it("restores a reload from tab storage without reusing the bootstrap or persisting repository scope", async () => {
+    const first = await harness();
+    expect(first.sessions.get(sessionKey)).toContain(browserToken);
+    expect(first.stored()).toBe(sprint.id);
+    const checkbox = descendants(first.get("repository-scope")).find((e) => e.tag === "input");
+    if (!checkbox) throw new Error("Missing scope checkbox");
+    checkbox.checked = true;
+    await checkbox.emit("change");
+    const reloaded = await harness(undefined, "", { sessions: first.sessions });
+    expect(reloaded.requests[0]?.path).toBe("/api/sprints");
+    expect(reloaded.requests[0]?.headers?.["Authorization"]).toBe(`Bearer ${browserToken}`);
+    expect(reloaded.requests.some((r) => r.path === "/api/ui/bootstrap")).toBe(false);
+    expect(reloaded.content("scope-summary")).toContain("plan context only");
+    expect(reloaded.get("sign-in-help").hidden).toBe(true);
+  });
+
+  it.each([
+    "{",
+    "null",
+    JSON.stringify({ token: browserToken, expiresAt: Date.now() + 100000, extra: "x".repeat(256) }),
+    JSON.stringify({ token: "bad", expiresAt: Date.now() + 100000 }),
+    JSON.stringify({ token: browserToken, expiresAt: 1 }),
+  ])(
+    "discards malformed or expired tab storage and explains the custom-port recovery command (%s)",
+    async (stored) => {
+      const sessions = new Map([[sessionKey, stored]]);
+      const client = await harness(undefined, "", { sessions, port: "4321" });
+      expect(client.requests).toHaveLength(0);
+      expect(sessions.has(sessionKey)).toBe(false);
+      expect(client.content("sign-in-command")).toBe("pnpm dashboard --port 4321");
+      expect(client.get("task-fields").disabled).toBe(true);
+    },
+  );
+
+  it("lets a new one-use link replace corrupt storage and works when storage is blocked", async () => {
+    const replaced = await harness(undefined, "#bootstrap=new", {
+      sessions: new Map([[sessionKey, "{bad"]]),
+    });
+    expect(replaced.sessions.get(sessionKey)).toContain(browserToken);
+    const blocked = await harness(undefined, "#bootstrap=new", { blockedStorage: true });
+    expect(blocked.get("task-fields").disabled).toBe(false);
+    expect(blocked.sessions.size).toBe(0);
+    expect(blocked.get("sign-in-help").hidden).toBe(false);
+    expect(blocked.content("action-status")).toContain("blocks tab storage");
+  });
+
+  it("discards a stored session rejected by a restarted server and preserves expiry guidance", async () => {
+    const sessions = new Map([
+      [sessionKey, JSON.stringify({ token: browserToken, expiresAt: Date.now() + 100000 })],
+    ]);
+    const client = await harness(() => failure(401, "unauthorized"), "", { sessions });
+    expect(sessions.size).toBe(0);
+    expect(client.content("connection-status")).toContain("Session expired");
+    expect(client.content("sign-in-command")).toBe("pnpm dashboard");
+    expect(client.get("task-fields").disabled).toBe(true);
+  });
+
+  it("starts a fresh exchange when a sign-in fragment is opened in an existing tab", async () => {
+    const client = await harness(undefined, "");
+    await client.changeHash("#main-content");
+    expect(client.events).not.toContain("reload-requested");
+    await client.changeHash("#bootstrap=new-link");
+    expect(client.events.filter((event) => event === "reload-requested")).toHaveLength(1);
+    expect(client.requests).toHaveLength(0);
+  });
+
+  it("rejects a consumed link without treating an old stored session as its successful exchange", async () => {
+    const sessions = new Map([
+      [sessionKey, JSON.stringify({ token: browserToken, expiresAt: Date.now() + 100000 })],
+    ]);
+    const client = await harness(
+      ({ path }) => (path === "/api/ui/bootstrap" ? failure(401, "bootstrap_invalid") : undefined),
+      "#bootstrap=used",
+      { sessions },
+    );
+    expect(client.requests).toHaveLength(1);
+    expect(sessions.size).toBe(0);
+    expect(client.content("action-status")).toContain("Run pnpm dashboard");
+    expect(client.get("task-fields").disabled).toBe(true);
   });
 
   it("uses only explicitly checked repositories and preserves scope through polling", async () => {
@@ -391,7 +474,7 @@ describe("dashboard user flow", () => {
     expect(empty.get("task-fields").disabled).toBe(true);
     const locked = await harness(undefined, "");
     expect(locked.requests).toHaveLength(0);
-    expect(locked.content("connection-status")).toContain("Open the sign-in link");
+    expect(locked.content("connection-status")).toContain("Open a sign-in link");
   });
 
   it("labels goal-less sprints and queued requests using saved observation time even before dispatch", async () => {
@@ -427,6 +510,8 @@ describe("dashboard user flow", () => {
       expect(client.get("task-fields").disabled).toBe(true);
     });
     expect(client.timers.size).toBe(0);
+    expect(client.sessions.has(sessionKey)).toBe(false);
+    expect(client.get("sign-in-help").hidden).toBe(false);
     expect(client.content("connection-status")).toContain("Session expired");
   });
 });
@@ -434,7 +519,19 @@ function failure(status: number, code: string, message = code) {
   return { responseStatus: status, error: { code, message } };
 }
 
-async function harness(handler?: Handler, hash = "#bootstrap=one-use-link") {
+async function harness(
+  handler?: Handler,
+  hash = "#bootstrap=one-use-link",
+  options: {
+    sessions?: Map<string, string>;
+    blockedStorage?: boolean;
+    port?: string;
+  } = {},
+) {
+  const sessions = options.sessions ?? new Map<string, string>();
+  const checkStorage = () => {
+    if (options.blockedStorage) throw new Error("Tab storage disabled");
+  };
   const elements = new Map<string, Element>();
   for (const match of DASHBOARD_HTML.matchAll(/<[^>]+\bid="([^"]+)"[^>]*>/gu)) {
     const element = new Element(/^<([a-z]+)/u.exec(match[0])?.[1] ?? "div");
@@ -455,6 +552,15 @@ async function harness(handler?: Handler, hash = "#bootstrap=one-use-link") {
     stored = "";
   const documentEvents = new Element("document"),
     windowEvents = new Element("window");
+  const location = {
+    hash,
+    pathname: "/",
+    search: "",
+    port: options.port ?? "4317",
+    reload: () => {
+      events.push("reload-requested");
+    },
+  };
   const document = {
     hidden: false,
     activeElement: null as Element | null,
@@ -492,8 +598,22 @@ async function harness(handler?: Handler, hash = "#bootstrap=one-use-link") {
       document,
       window: {
         crypto: { randomUUID: () => `request-${String(++nextTimer)}` },
-        location: { hash, pathname: "/", search: "" },
+        location,
         history: { replaceState: () => events.push("fragment-cleared") },
+        sessionStorage: {
+          getItem: (key: string) => {
+            checkStorage();
+            return sessions.get(key) ?? null;
+          },
+          setItem: (key: string, value: string) => {
+            checkStorage();
+            sessions.set(key, value);
+          },
+          removeItem: (key: string) => {
+            checkStorage();
+            sessions.delete(key);
+          },
+        },
         localStorage: {
           getItem: () => stored,
           setItem: (_key: string, value: string) => {
@@ -532,16 +652,21 @@ async function harness(handler?: Handler, hash = "#bootstrap=one-use-link") {
     },
     { filename: fileURLToPath(new URL("../../src/dashboard/dashboard.js", import.meta.url)) },
   );
-  if (hash)
-    await vi.waitFor(() => {
-      expect(timers.size).toBe(1);
-    });
+  await vi.waitFor(() => {
+    expect(
+      timers.size === 1 ||
+        (!get("sign-in-help").hidden &&
+          (get("connection-status").textContent.startsWith("Open a sign-in") ||
+            get("connection-status").textContent.startsWith("Session expired"))),
+    ).toBe(true);
+  });
   return {
     get,
     document,
     events,
     requests,
     timers,
+    sessions,
     stored: () => stored,
     content: (id: string) => content(get(id)),
     button: (id: string, label: string) => {
@@ -562,6 +687,10 @@ async function harness(handler?: Handler, hash = "#bootstrap=one-use-link") {
       timers.delete(next[0]);
       next[1].callback();
     },
+    changeHash: async (hash: string) => {
+      location.hash = hash;
+      await windowEvents.emit("hashchange");
+    },
     visibility: async (hidden: boolean) => {
       document.hidden = hidden;
       await documentEvents.emit("visibilitychange");
@@ -569,7 +698,8 @@ async function harness(handler?: Handler, hash = "#bootstrap=one-use-link") {
   };
 }
 function defaultResponse({ path, method }: Request): unknown {
-  if (path === "/api/ui/bootstrap") return { token: "synthetic-token" };
+  if (path === "/api/ui/bootstrap")
+    return { token: browserToken, expiresAt: Date.now() + 43_200_000 };
   if (path === "/api/status") return { investigationsEnabled: true };
   if (path === "/api/sprints") return method === "POST" ? { sprint } : { sprints: [sprint] };
   if (path.endsWith("/overview")) return overview();

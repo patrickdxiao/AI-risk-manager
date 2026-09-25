@@ -18,6 +18,16 @@
       <p id="connection-status" role="status">Connecting...</p>
     </header>
     <main id="main-content">
+      <section id="sign-in-help" aria-labelledby="sign-in-title" hidden>
+        <h2 id="sign-in-title">Get a fresh sign-in link</h2>
+        <p>Keep the local app running. In another terminal in this checkout, run:</p>
+        <pre><code id="sign-in-command">pnpm dashboard</code></pre>
+        <p>
+          If the app uses a custom state directory, add
+          <code>--state-dir /absolute/path/to/app-state</code>. Open the link printed in that
+          terminal.
+        </p>
+      </section>
       <div class="toolbar">
         <label for="sprint-select"
           >Sprint<select id="sprint-select" disabled>

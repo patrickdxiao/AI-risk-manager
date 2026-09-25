@@ -7,6 +7,7 @@
     window.location.pathname + window.location.search,
   );
   const STORAGE_KEY = "development-risk.sprint";
+  const SESSION_KEY = "development-risk.session";
   let token, sprintId, overview, editingTask, timer;
   let sprints = [],
     repositories = [],
@@ -90,6 +91,60 @@
       /* Session selection still works. */
     }
   }
+  function clearSession() {
+    token = undefined;
+    try {
+      window.sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* Storage can be disabled. */
+    }
+  }
+  function restoreSession() {
+    try {
+      const raw = window.sessionStorage.getItem(SESSION_KEY);
+      if (typeof raw === "string" && raw.length <= 256) {
+        const saved = JSON.parse(raw);
+        if (validSession(saved)) return saved.token;
+      }
+    } catch {
+      /* A corrupt or unavailable tab store cannot prevent a new sign-in. */
+    }
+    clearSession();
+    return undefined;
+  }
+  function validSession(session) {
+    return (
+      typeof session?.token === "string" &&
+      /^[A-Za-z0-9_-]{43}$/u.test(session.token) &&
+      Number.isSafeInteger(session.expiresAt) &&
+      session.expiresAt > Date.now()
+    );
+  }
+  function saveSession(session) {
+    try {
+      window.sessionStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({ token: session.token, expiresAt: session.expiresAt }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function signInHelp(expired = false) {
+    byId("sign-in-help").hidden = false;
+    const port = window.location.port;
+    text("sign-in-command", "pnpm dashboard" + (port && port !== "4317" ? " --port " + port : ""));
+    if (!token) {
+      text(
+        "connection-status",
+        expired
+          ? "Session expired. Open a fresh sign-in link."
+          : "Open a sign-in link from the local app.",
+      );
+      text("provider-status", "Sign in to manage plans and review settings.");
+    }
+  }
   function availability() {
     const busy = pending.size > 0;
     for (const name of ["sprint", "settings", "task", "discovery"])
@@ -115,10 +170,10 @@
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (response.status === 401) {
-      token = undefined;
+      clearSession();
       window.clearTimeout(timer);
       availability();
-      text("connection-status", "Session expired. Open a new sign-in link.");
+      signInHelp(true);
     }
     const value = response.status === 204 ? undefined : await response.json();
     if (!response.ok)
@@ -775,6 +830,10 @@
     else window.clearTimeout(timer);
   };
   document.addEventListener("visibilitychange", resume);
+  window.addEventListener("hashchange", () => {
+    if (new URLSearchParams(window.location.hash.slice(1)).has("bootstrap"))
+      window.location.reload();
+  });
   window.addEventListener("pagehide", () => {
     pageActive = false;
     window.clearTimeout(timer);
@@ -862,29 +921,45 @@
     const now = new Date();
     byId("sprint-start").value = localDate(now);
     byId("sprint-end").value = localDate(new Date(now.getTime() + 7 * 86400000));
-    if (!nonce) {
-      text("connection-status", "Open the sign-in link from the local app.");
-      return;
-    }
+    token = restoreSession();
+    let reloadAvailable = true;
     try {
-      const response = await window.fetch("/api/ui/bootstrap", {
-        method: "POST",
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nonce }),
-      });
-      const bootstrap = await response.json();
-      if (!response.ok || typeof bootstrap?.token !== "string")
-        throw new Error("This sign-in link expired. Open a new one from the local app.");
-      token = bootstrap.token;
+      if (nonce) {
+        clearSession();
+        const response = await window.fetch("/api/ui/bootstrap", {
+          method: "POST",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nonce }),
+        });
+        const bootstrap = await response.json();
+        if (!response.ok || !validSession(bootstrap))
+          throw new Error(
+            "This sign-in link expired or was used already. Run pnpm dashboard for a fresh link.",
+          );
+        token = bootstrap.token;
+        reloadAvailable = saveSession(bootstrap);
+      }
+      if (!token) {
+        signInHelp();
+        availability();
+        return;
+      }
       text("connection-status", "Connected to the local app");
       await loadSprints();
+      byId("sign-in-help").hidden = true;
       status("Plans and findings are saved locally.");
+      if (!reloadAvailable) {
+        signInHelp();
+        status("This browser blocks tab storage. Use a fresh sign-in link after reloading.");
+      }
       await refresh();
     } catch (error) {
       status(errorMessage(error, "Could not connect to the local app."), true);
-      text("connection-status", "Unable to connect");
+      if (!token) {
+        if (byId("sign-in-help").hidden) signInHelp();
+      } else text("connection-status", "Unable to connect");
     }
     availability();
   }

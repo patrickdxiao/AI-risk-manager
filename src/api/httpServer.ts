@@ -46,9 +46,10 @@ export function buildApiServer(options: {
       token?.startsWith("risk_attempt.") === true
     )
       return;
+    const owner = token !== undefined && timingSafeEqual(expected, digest(token));
     if (
-      token === undefined ||
-      (!timingSafeEqual(expected, digest(token)) &&
+      !owner &&
+      (route === "/api/ui/sign-in-link" ||
         options.dashboardAuth?.authenticateUiBearer(token) !== true)
     )
       await reply
