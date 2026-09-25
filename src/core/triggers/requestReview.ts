@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { planningDigest } from "../investigation/evidenceScope.js";
 import {
+  ApplicationError,
   DomainInvariantError,
   MAX_REVIEW_REPOSITORIES,
+  MAX_REVIEW_SEED_EVIDENCE,
   normalizeStringList,
   requireNonBlank,
   type ClockPort,
@@ -19,7 +21,11 @@ interface ReviewScope {
 }
 export type RequestReviewInput = ReviewScope &
   (
-    | { readonly type: "manual_review"; readonly requestId: string }
+    | {
+        readonly type: "manual_review";
+        readonly requestId: string;
+        readonly evidenceIds?: readonly string[];
+      }
     | { readonly type: "plan_changed" }
   );
 
@@ -47,12 +53,36 @@ export class RequestReview {
         ),
       ].sort(),
     );
+    const evidenceIds =
+      type === "manual_review"
+        ? [
+            ...new Set(
+              normalizeStringList(
+                input.evidenceIds ?? [],
+                "evidenceIds",
+                MAX_REVIEW_SEED_EVIDENCE,
+                200,
+              ),
+            ),
+          ].sort()
+        : [];
     const scope = Object.freeze({
       sprintId,
       ...(taskId === undefined ? {} : { taskId }),
       repositoryIds,
     });
     return this.store.execute(async (store) => {
+      const evidenceDigests: string[] = [];
+      for (const id of evidenceIds) {
+        const item = await store.evidence.findById(id);
+        if (item === undefined)
+          throw new ApplicationError(
+            "evidence_not_found",
+            "Review evidence does not exist",
+            "evidenceIds",
+          );
+        evidenceDigests.push(item.digest);
+      }
       const inputSummary =
         requestId === undefined
           ? { planningDigest: await planningDigest(store, scope) }
@@ -68,9 +98,9 @@ export class RequestReview {
           reason:
             type === "manual_review" ? "The user requested a review." : "The saved plan changed.",
           inputSummary,
-          evidenceDigests: [],
+          evidenceDigests,
         },
-        evidenceIds: [],
+        evidenceIds,
         cooldownMinutes: 0,
       });
     });

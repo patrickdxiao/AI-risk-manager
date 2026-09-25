@@ -9,7 +9,7 @@ import {
   type TriggerQueueRecord,
 } from "../../../src/core/triggers/triggerModel.js";
 import { reviewQueueFixture } from "../../fixtures/reviewQueueFixture.js";
-import { now, repository, sprint, task } from "../../fixtures/riskFixture.js";
+import { evidence, now, repository, sprint, task } from "../../fixtures/riskFixture.js";
 
 const manual = (requestId = "click-1"): RequestReviewInput => ({
   type: "manual_review",
@@ -129,6 +129,29 @@ describe("manual and plan review requests", () => {
     ])
       await expect(fixture.requests.execute(input)).rejects.toBeInstanceOf(Error);
     expect(fixture.triggers()).toEqual([]);
+  });
+
+  it("snapshots manual seed evidence and rejects missing or changed retry citations", async () => {
+    const fixture = setup({ evidence: [evidence] });
+    const input = {
+      type: "manual_review" as const,
+      requestId: "answer",
+      sprintId: "sprint",
+      repositoryIds: [repository.id],
+      evidenceIds: [evidence.id],
+    };
+    const queued = await fixture.requests.execute(input);
+    expect(queued.trigger.evidenceCitations).toEqual([
+      { evidenceId: evidence.id, digest: evidence.digest },
+    ]);
+    expect(await fixture.requests.execute(input)).toMatchObject({ status: "existing" });
+    await expect(fixture.requests.execute({ ...input, evidenceIds: [] })).rejects.toMatchObject({
+      field: "dedupKey",
+    });
+    await expect(
+      fixture.requests.execute({ ...input, requestId: "missing", evidenceIds: ["absent"] }),
+    ).rejects.toMatchObject({ code: "evidence_not_found" });
+    expect(fixture.triggers()).toHaveLength(1);
   });
 
   it("uses the same global unfinished queue capacity as observed reviews", async () => {
