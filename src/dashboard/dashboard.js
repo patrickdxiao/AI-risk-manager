@@ -426,8 +426,8 @@
         else openTasks.delete(task.id);
       });
       heading.appendChild(node("span", task.title));
-      const badge = node("span", human(task.riskState || "uncertain"), "badge");
-      badge.dataset.risk = task.riskState || "uncertain";
+      const badge = node("span", archived ? "done" : human(task.riskState || "uncertain"), "badge");
+      if (!archived) badge.dataset.risk = task.riskState || "uncertain";
       heading.appendChild(badge);
       summary.appendChild(heading);
       details.appendChild(summary);
@@ -445,7 +445,7 @@
           criteria.appendChild(node("li", criterion));
         details.appendChild(criteria);
       }
-      details.appendChild(findingDetail(task.assessment));
+      if (!archived || task.assessment) details.appendChild(findingDetail(task.assessment));
       const actions = node("div", undefined, "actions");
       actions.appendChild(button("Edit task", () => editTask(task)));
       for (const next of task.allowedUserTransitions ||

@@ -195,6 +195,8 @@ describe("dashboard user flow", () => {
     );
     await client.click("show-archive");
     expect(client.get("archive-panel").hidden).toBe(false);
+    expect(client.content("archive-list")).not.toContain("No accepted assessment yet");
+    expect(client.content("archive-list")).not.toContain("uncertain");
     await client.button("archive-list", "Reopen").emit("click");
     expect(client.requests.find((r) => r.method === "PATCH")?.body?.["state"]).toBe("in_progress");
   });
