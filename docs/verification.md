@@ -21,3 +21,27 @@ They do not measure cold startup, concurrent users, large evidence histories, mo
 Timing is reported rather than asserted in CI because machine load changes the results.
 
 ![Output from the local HTTP benchmark, including environment and sample counts](images/http-benchmark.png)
+
+## Browser access
+
+A real browser exercised the compiled dashboard with a saved task: reload retained the session, an expired credential in tab storage locked the page, and a fresh `pnpm dashboard` link reopened it with the task intact. The application process stayed running throughout, and the browser console reported no errors.
+The browser exercise simulated expiry by changing tab storage. Separate authenticated HTTP tests advance the server clock to check session expiry, one-use link rejection, and the restriction that only the local owner credential can mint a new link.
+
+![Saved task remains visible after reloading the dashboard](images/session-reload.png)
+
+![Fresh sign-in link restores access without restarting the application](images/session-renewed.png)
+
+## Crash, restore, and clock-gap recovery
+
+Real child-process tests terminate SQLite writers with `SIGKILL`: committed WAL data survives reopening, incomplete task and evidence writes roll back, and an accepted receipt and completed dispatch survive without another call to the scripted runtime.
+Recovery tests retain an orphaned attempt until its lease expires, then reject stale credentials and results while preserving unresolved token reservations.
+
+The snapshot CLI uses SQLite's backup API, verifies the resulting database, and restores plans and evidence through the application stores. Tests cover committed WAL data, corrupt or unsafe files, existing destinations, and source or destination paths inside registered repositories, including a directory alias. A rejected source inside a monitored repository creates no SQLite sidecars.
+See the [backup and restore steps](../README.md#back-up-and-restore-state) before restoring; snapshots retain pending work and leases, and do not revoke remote attempts.
+
+A stalled runtime test advances the injected wall clock beyond the persisted attempt deadline while its relative timer remains pending. The local deadline poll releases the wait and allows scheduler recovery; backward or invalid clocks do not extend the original relative timeout, and completion clears both timers.
+This models a clock gap without suspending the operating system. These drills establish the tested process-crash and recovery behavior, not durability under power loss or proof that a remote provider stopped work.
+
+## Real provider reviews
+
+The [live evaluation](evaluation.md) records three synthetic cases run through the built application, native OpenClaw Gateway, and configured model. It includes accepted findings, scoped reads, reported usage, and explicit limits on the conclusions; ordinary tests and CI never run those provider calls.

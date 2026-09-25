@@ -10,7 +10,7 @@ The MVP includes SQLite persistence, bounded read-only Git discovery and capture
 It supports one local developer and one active investigation at a time.
 It does not edit or execute monitored code, fetch remotes, automatically complete tasks, or manage tickets and remote workers.
 
-The following remain evaluation targets, not measured product claims:
+The evaluation targets are below. [Local verification](verification.md) and the [live model evaluation](evaluation.md) record the current evidence and its limits.
 
 - Find more real blockers than fixed rules or a single AI summary without more false alarms in human-reviewed cases.
 - Serve planning and status requests within 200 ms at p50 and 1 s at p99; show accepted findings within 2 s at p99.
@@ -183,13 +183,12 @@ Current tests cover real temporary Git repositories, bounded discovery, identity
 The pinned OpenClaw package's schemas and hook contracts and native registration of the built plugin are checked without calling a provider.
 Full formatting, lint, type, coverage, and build checks run in CI.
 
-A scripted end-to-end workflow verifies application integration, not model accuracy.
-The earlier real-model trials below were not rerun for this MVP.
-Actual child-process SIGKILL tests verify committed WAL recovery, rollback of partial writes, and preservation of an accepted receipt and completed dispatch without another provider call.
-A SQLite-backed scheduler test advances wall time without delivering elapsed timers, then verifies recovery, stale ownership rejection, and retention of unknown usage reservations.
-The snapshot CLI's restore drill verifies saved plans and evidence from live WAL data, and refuses replacement of existing files.
-These checks do not simulate power failure or suspend the operating system; broader load measurements and prompt-injection campaigns remain separate evaluation work.
-Use the [backup and restore workflow](../README.md#back-up-and-restore-state) for consistent snapshots; copying only the main file while WAL data is outstanding is unsafe.
+A scripted end-to-end workflow verifies application integration. Three new real-model reviews through the built OpenClaw plugin distinguished observed failure, verified behavior, and an unsupported malicious claim in synthetic fixtures; they do not establish general accuracy or superiority to another investigator.
+The [evaluation report](evaluation.md) includes accepted findings, reported usage, and the prompt-version audit limitation. The historical POC artifacts below remain separate.
+
+[Local verification](verification.md) covers measured loopback HTTP latency, browser reload and renewed sign-in, abrupt process termination, snapshot restoration, and simulated wall-clock gaps.
+These checks do not establish power-loss durability, actual OS suspend/resume behavior, browser rendering percentiles, production latency, or resistance to broad prompt-injection campaigns.
+Use the [snapshot command](../README.md#back-up-and-restore-state) for a consistent backup that includes committed WAL data; do not copy only the live main database file.
 Repository removal and lost citations fail closed on later scoped reads, but there is no complete revocation/purge UI or guarantee of provider-side deletion.
 
 ## Historical POC evidence

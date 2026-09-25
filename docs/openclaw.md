@@ -11,7 +11,16 @@ pnpm build
 
 Add the plugin through `plugins.load.paths` using the absolute path to this checkout's `dist/plugin` directory. The build copies the manifest and writes the plugin package entry as `./index.js`; do not point the built setup at the source `index.ts`. Keep the checkout, its complete `dist` tree, and installed dependencies available because the plugin imports adjacent application modules. This is a local checkout integration, not a separately published npm package.
 
-Create a dedicated investigator agent and a dedicated empty workspace. Point its tools allowlist at only these four tools. The application's state setup creates its private `attempts` directory; both processes must use that same absolute canonical directory under the same local user. The directory must have mode `0700` and must not be a symlink. Existing unsafe directories are rejected rather than repaired.
+Create a dedicated investigator agent and a dedicated empty workspace. Point its tools allowlist at only these four tools. Both processes must use the same absolute canonical `attempts` directory under the same local user. The directory must have mode `0700` and must not be a symlink. Existing unsafe directories are rejected rather than repaired.
+
+Before inspecting the plugin or starting its Gateway, create the private credentials directory. For a new state location, create its parent first:
+
+```sh
+mkdir -m 700 /absolute/path/to/app-state
+mkdir -m 700 /absolute/path/to/app-state/attempts
+```
+
+Skip a command if that directory already exists with the required permissions. Planning-only startup creates the state directory but not `attempts`; enabled startup creates both, but plugin inspection must already be able to open `attempts`.
 
 Merge these settings into the OpenClaw config used by the application's `openclaw` subprocess and Gateway, replacing every example path:
 
@@ -51,7 +60,7 @@ Merge these settings into the OpenClaw config used by the application's `opencla
 }
 ```
 
-Use the same API port in the app and plugin settings. Only canonical HTTP `127.0.0.1` origins are accepted; redirects are rejected. Restart the configured Gateway after changing the plugin. Inspect registration without calling a model:
+Use the same API port in the app and plugin settings. Only canonical HTTP `127.0.0.1` origins are accepted; redirects are rejected. Restart the configured Gateway after changing the plugin. Inspect registration without calling a model, using the same configuration environment as that Gateway. The [isolated-profile recipe](#keep-a-dedicated-local-profile) below includes the required environment variables:
 
 ```sh
 openclaw plugins inspect development-risk --runtime --json
@@ -83,7 +92,16 @@ An isolated profile avoids changing an existing Gateway or the user's global Ope
 
 Set the dedicated agent's `agentDir` to `~/.development-risk-agent/openclaw/agents/risk-investigator/agent` using an absolute expanded path. Configure provider authentication for that isolated agent through OpenClaw's normal auth flow, or explicitly import an authorized current profile into its private credential store. Do not put provider credentials in this repository or share the entire agent directory with another agent. OAuth credentials can expire and may require renewal in the same isolated profile.
 
-Run these in separate terminals, after building the final checkout. Replace the state path if needed, and use the same environment in both terminals:
+After building the checkout and creating the private `attempts` directory described above, inspect the plugin with the isolated profile:
+
+```sh
+RISK_STATE="$HOME/.development-risk-agent"
+OPENCLAW_STATE_DIR="$RISK_STATE/openclaw" \
+OPENCLAW_CONFIG_PATH="$RISK_STATE/risk-openclaw.json" \
+  openclaw plugins inspect development-risk --runtime --json
+```
+
+Then run these in separate terminals. Replace the state path if needed, and use the same environment in both terminals:
 
 ```sh
 RISK_STATE="$HOME/.development-risk-agent"
