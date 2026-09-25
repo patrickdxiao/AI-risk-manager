@@ -118,6 +118,8 @@ A separate private credential file makes the opaque token available only to the 
 Twelve authenticated context/evidence reads are allowed per attempt, including reads that fail after authentication.
 The service rechecks authority after external capture and before accepting results.
 Cancellation and lease expiry reject late reads or submissions; they do not prove remote work stopped.
+During provider waiting, a wall-deadline check runs at most 30 seconds apart so an expired attempt can release local waiting after a suspended clock resumes.
+The original relative timeout remains in force even if wall time moves backward.
 
 ## OpenClaw integration
 
@@ -183,8 +185,11 @@ Full formatting, lint, type, coverage, and build checks run in CI.
 
 A scripted end-to-end workflow verifies application integration, not model accuracy.
 The earlier real-model trials below were not rerun for this MVP.
-Latency percentiles, abrupt process-crash durability, suspend/resume behavior, broad prompt-injection campaigns, and backup restore drills remain unmeasured or unverified.
-Backups must include a consistent SQLite snapshot rather than copying only the main file while WAL data is outstanding.
+Actual child-process SIGKILL tests verify committed WAL recovery, rollback of partial writes, and preservation of an accepted receipt and completed dispatch without another provider call.
+A SQLite-backed scheduler test advances wall time without delivering elapsed timers, then verifies recovery, stale ownership rejection, and retention of unknown usage reservations.
+The snapshot CLI's restore drill verifies saved plans and evidence from live WAL data, and refuses replacement of existing files.
+These checks do not simulate power failure or suspend the operating system; broader load measurements and prompt-injection campaigns remain separate evaluation work.
+Use the [backup and restore workflow](../README.md#back-up-and-restore-state) for consistent snapshots; copying only the main file while WAL data is outstanding is unsafe.
 Repository removal and lost citations fail closed on later scoped reads, but there is no complete revocation/purge UI or guarantee of provider-side deletion.
 
 ## Historical POC evidence

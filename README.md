@@ -87,8 +87,9 @@ pnpm build
 
 The checks cover formatting, lint, types, and coverage tests; the build emits the service, dashboard assets, and local OpenClaw plugin.
 GitHub Actions runs both for pull requests and changes to `main`.
-Tests exercise real temporary Git repositories, SQLite transactions and recovery, authenticated HTTP routes, scripted investigations, and dashboard behavior.
+Tests exercise real temporary Git repositories, SQLite transactions and SIGKILL recovery, consistent snapshot restoration, authenticated HTTP routes, scripted investigations, and dashboard behavior.
 The built OpenClaw plugin also passes native registration checks without provider calls.
-These checks do not establish model accuracy, abrupt-crash durability, OS sandbox isolation, or production latency.
+Clock-gap tests exercise expired leases and scheduler recovery; they do not suspend the operating system.
+These checks do not establish model accuracy, power-loss durability, OS sandbox isolation, or production latency.
 See [the design](docs/design.md) for access boundaries, remaining limitations, and separately labeled historical POC evidence.
 Run `pnpm benchmark` for a provider-free local HTTP measurement; [verification notes](docs/verification.md) describe the workload and measured limits.
