@@ -17,7 +17,8 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc",
     "start": "node dist/api/main.js",
-    "gateway": "pnpm build && node dist/api/main.js"
+    "gateway": "pnpm build && node dist/api/main.js",
+    "benchmark": "pnpm build && node scripts/benchmark.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.34.0",
