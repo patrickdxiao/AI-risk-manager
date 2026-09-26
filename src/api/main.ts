@@ -14,6 +14,7 @@ const INVESTIGATOR_ENV = "DEVELOPMENT_RISK_OPENCLAW_AGENT";
 const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM"] as const;
 const HELP = `Usage:
   pnpm gateway [--state-dir PATH] [--port PORT] [--openclaw-agent ID]
+  pnpm gateway --openclaw-activity
   pnpm start [--state-dir PATH] [--port PORT]
   pnpm dashboard [--state-dir PATH] [--port PORT]
   pnpm gateway --help
@@ -24,6 +25,7 @@ pnpm dashboard prints a fresh link for the running app without restarting it.
 State defaults to ~/.development-risk-agent. --port 0 selects an available port.
 Environment defaults: DEVELOPMENT_RISK_STATE_DIR and DEVELOPMENT_RISK_API_PORT.
 --openclaw-agent ID enables investigations with a separately configured dedicated OpenClaw agent.
+--openclaw-activity reads agent/subagent session metadata from your configured Gateway without starting agents.
 DEVELOPMENT_RISK_OPENCLAW_AGENT supplies its default. Model calls are disabled by default.
 Help does not start a server or open local state.`;
 
@@ -31,6 +33,7 @@ export interface LocalApiMainOptions {
   readonly stateDir: string;
   readonly port: number;
   readonly investigationAgentId?: string;
+  readonly openClawActivity?: true;
   readonly signInLink?: true;
 }
 
@@ -63,11 +66,14 @@ export function parseMainOptions(
   let investigationAgentId = env[INVESTIGATOR_ENV];
   const gateway = argv[0] === "gateway";
   let signInLink = false;
+  let openClawActivity = false;
 
   for (let index = gateway ? 1 : 0; index < argv.length; index += 1) {
     const argument = argv[index];
     const value = argv[index + 1];
-    if (argument === "--sign-in-link") {
+    if (argument === "--openclaw-activity") {
+      openClawActivity = true;
+    } else if (argument === "--sign-in-link") {
       signInLink = true;
     } else if (argument === "--state-dir" && value !== undefined) {
       stateDir = value;
@@ -111,6 +117,7 @@ export function parseMainOptions(
   return Object.freeze({
     stateDir: resolve(stateDir),
     port,
+    ...(openClawActivity ? { openClawActivity: true as const } : {}),
     ...(signInLink ? { signInLink: true as const } : {}),
     ...(investigationAgentId === undefined ? {} : { investigationAgentId }),
   });

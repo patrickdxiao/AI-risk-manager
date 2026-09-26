@@ -137,6 +137,39 @@ function storeFor(runtime: LocalApiRuntime) {
 }
 
 describe("composed local runtime", () => {
+  it("authenticates display-only agent activity without enabling reviews", async () => {
+    const f = fixture();
+    const data = {
+      status: "connected" as const,
+      sessions: [
+        {
+          key: "agent:dev:main",
+          agentId: "dev",
+          label: "User agent",
+          kind: "agent" as const,
+          state: "running" as const,
+          updatedAt: 123,
+        },
+      ],
+    };
+    const list = vi.fn().mockResolvedValue(data);
+    const runtime = await createLocalApiRuntime({ stateDir: f.stateDir, agentActivity: { list } });
+    runtimes.push(runtime);
+    expect(
+      (await runtime.app.inject({ method: "GET", url: "/api/agents/activity" })).statusCode,
+    ).toBe(401);
+    expect(list).not.toHaveBeenCalled();
+    expect((await f.request(runtime, "GET", "/api/agents/activity")).json()).toEqual(data);
+    expect((await f.request(runtime, "GET", "/api/status")).json()).toEqual({
+      investigationsEnabled: false,
+    });
+    await runtime.close();
+    const disabled = await f.open();
+    expect((await f.request(disabled, "GET", "/api/agents/activity")).json()).toEqual({
+      status: "disabled",
+      sessions: [],
+    });
+  });
   it("persists plans and repeated local-only Git captures while providers are disabled", async () => {
     const f = fixture(),
       runtime = await f.open();
