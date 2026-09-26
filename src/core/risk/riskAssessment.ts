@@ -278,9 +278,13 @@ export class GetSprintOverview {
           })
           .map((task) => [task.id, task]),
       );
+      const sprintTasks = await context.planning.findTasksBySprintId(sprintId);
       if (sprint.state !== "completed" && Date.parse(sprint.endAt) > Date.parse(now))
-        for (const task of await context.planning.findTasksBySprintId(sprintId))
-          tasks.set(task.id, task);
+        for (const task of sprintTasks) tasks.set(task.id, task);
+      // Archival changes task visibility, not the selected sprint's earned points.
+      const pointTasks = [
+        ...new Map([...tasks, ...sprintTasks.map((task) => [task.id, task] as const)]).values(),
+      ];
       const dependents = new Map<string, number>();
       for (const task of tasks.values())
         if (task.state !== "done")
@@ -323,8 +327,8 @@ export class GetSprintOverview {
       return Object.freeze({
         sprint,
         tasks: Object.freeze(rows),
-        totalPoints: rows.reduce((sum, task) => sum + task.points, 0),
-        confirmedDonePoints: rows.reduce(
+        totalPoints: pointTasks.reduce((sum, task) => sum + task.points, 0),
+        confirmedDonePoints: pointTasks.reduce(
           (sum, task) => sum + (task.state === "done" ? task.points : 0),
           0,
         ),
