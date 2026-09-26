@@ -4,7 +4,7 @@ A local-first agent that investigates blockers and at-risk work across one devel
 
 - **Dashboard** — Plan sprints, tasks, and dependencies across repositories; track point progress, risk signals, and review activity. You decide when work is complete.
 - **Git adapter** — Capture metadata from approved repositories without fetching, editing, or executing their code.
-- **OpenClaw investigator** — Follow saved evidence and report risks with citations, uncertainty, and next checks. The dashboard shows its review state alongside preview cards for future subagents.
+- **OpenClaw investigator** — Follow saved evidence and report risks with citations, uncertainty, and next checks. The dashboard surfaces recent review activity and leaves room for broader OpenClaw agent discovery.
 - **Build pipeline** — A dashboard status area is scaffolded for future CI and build signals.
 - **SQLite** — Persist plans, evidence, and review history across sessions.
 
