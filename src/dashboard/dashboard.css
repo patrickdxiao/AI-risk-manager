@@ -68,6 +68,120 @@ nav,
   border-radius: 0.5rem;
   align-items: end;
 }
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+.overview-card,
+.subagents-panel {
+  min-width: 0;
+  padding: 1.1rem 1.25rem;
+  background: #fff;
+  border: 1px solid #d5ddd3;
+  border-radius: 0.5rem;
+}
+.overview-card--progress {
+  grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 10rem;
+  background: #edf3ec;
+}
+.overview-card--pipeline {
+  grid-column: 2 / -1;
+  background: #f8f8f5;
+}
+.card-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.card-heading h2 {
+  margin: 0.2rem 0 0;
+  font-size: 2rem;
+  letter-spacing: -0.04em;
+}
+.eyebrow {
+  margin: 0;
+  color: #627068;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.card-value {
+  margin: 0;
+  color: #285c45;
+  font-weight: 650;
+}
+.status-value {
+  margin: 0.3rem 0 0.15rem;
+  color: #24332d;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.progress-bar {
+  width: 100%;
+  height: 0.65rem;
+  display: block;
+  appearance: none;
+}
+.progress-bar::-webkit-progress-bar {
+  background: #d5dfd4;
+  border-radius: 999px;
+}
+.progress-bar::-webkit-progress-value {
+  background: #2f7556;
+  border-radius: 999px;
+}
+.progress-bar::-moz-progress-bar {
+  background: #2f7556;
+  border-radius: 999px;
+}
+.subagents-panel {
+  margin: 1.25rem 0 1.5rem;
+}
+.subagents-panel h2 {
+  margin: 0.15rem 0 0;
+}
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.agent-card {
+  padding: 0.9rem;
+  background: #f7f9f6;
+  border: 1px solid #dce4db;
+  border-radius: 0.35rem;
+}
+.agent-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+.agent-card strong {
+  font-size: 0.95rem;
+}
+.agent-card p {
+  margin: 0.45rem 0 0;
+}
+.agent-status {
+  color: #285c45;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.agent-status[data-state="preview"] {
+  color: #765617;
+}
 .toolbar label {
   flex: 1;
   min-width: 12rem;
@@ -296,6 +410,19 @@ pre {
   header {
     align-items: start;
   }
+  .overview-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .overview-card--progress {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+  .overview-card--pipeline {
+    grid-column: auto;
+  }
+  .agent-grid {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 35rem) {
   header {
@@ -303,6 +430,12 @@ pre {
   }
   .field-pair {
     grid-template-columns: 1fr;
+  }
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .overview-card--pipeline {
+    grid-column: auto;
   }
   .task-summary {
     display: block;

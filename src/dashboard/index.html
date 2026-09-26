@@ -49,6 +49,52 @@
       <p id="action-status" role="status" aria-live="polite">
         Open the sign-in link from the local app.
       </p>
+      <section class="overview-grid" aria-label="Sprint overview">
+        <article class="overview-card overview-card--progress">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Sprint progress</p>
+              <h2 id="progress-percent">0%</h2>
+            </div>
+            <p id="progress-summary" class="card-value">0 / 0 points</p>
+          </div>
+          <progress
+            id="progress-bar"
+            class="progress-bar"
+            max="100"
+            value="0"
+            aria-label="Sprint points complete"
+          >
+            0%
+          </progress>
+          <p id="progress-detail" class="muted">Create a sprint and tasks to track progress.</p>
+        </article>
+        <article class="overview-card">
+          <p class="eyebrow">API status</p>
+          <p id="api-status" class="status-value">Waiting for sign-in</p>
+          <p class="muted">Local service on 127.0.0.1</p>
+        </article>
+        <article class="overview-card">
+          <p class="eyebrow">Risk signal</p>
+          <p id="risk-summary" class="status-value">No sprint selected</p>
+          <p id="risk-detail" class="muted">Risk counts appear with your saved tasks.</p>
+        </article>
+        <article class="overview-card overview-card--pipeline">
+          <p class="eyebrow">Build &amp; pipeline</p>
+          <p class="status-value">Coming soon</p>
+          <p class="muted">CI and build signals will appear here.</p>
+        </article>
+      </section>
+      <section class="subagents-panel" aria-labelledby="subagents-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Investigation crew</p>
+            <h2 id="subagents-title">Subagents</h2>
+          </div>
+          <p id="subagent-summary" class="muted">Preview workspace</p>
+        </div>
+        <div id="subagent-list" class="agent-grid"></div>
+      </section>
       <nav aria-label="Workspace views">
         <button id="show-tasks" type="button" aria-pressed="true" aria-controls="tasks-panel">
           Tasks
@@ -63,7 +109,6 @@
       <section id="tasks-panel" aria-labelledby="tasks-title">
         <div class="section-heading">
           <h2 id="tasks-title">What needs attention</h2>
-          <p id="progress-summary"></p>
         </div>
         <p id="coverage-summary" class="muted">Select a sprint to see saved findings.</p>
         <div id="sprint-finding"></div>

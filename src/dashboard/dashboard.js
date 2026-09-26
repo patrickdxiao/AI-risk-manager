@@ -271,6 +271,8 @@
       if (runtime.status === "fulfilled")
         investigationsEnabled = runtime.value.investigationsEnabled === true;
       else investigationsEnabled = false;
+      let reviewRecords = [],
+        queuedReviews = [];
       updateRepositories();
       updatePlan();
       renderChanged("task-list", overview?.tasks || [], () =>
@@ -280,6 +282,8 @@
         renderChanged("archive-list", archive, () => renderTasks("archive-list", archive, true));
       if (reviews.status === "fulfilled") {
         const records = reviews.value.investigations;
+        reviewRecords = records;
+        queuedReviews = reviews.value.pending || [];
         for (const record of records) {
           if (
             record.investigation.status === "completed" &&
@@ -309,6 +313,7 @@
       }
       if ([archived, reviews, registered, runtime].some((result) => result.status === "rejected"))
         status("Some saved data could not be refreshed. Retrying shortly.", true);
+      updateDashboardOverview(reviewRecords, queuedReviews);
       renderChanged("sprint-finding", overview?.sprintRisk, () => {
         byId("sprint-finding").replaceChildren();
         if (overview?.sprintRisk)
@@ -409,6 +414,91 @@
       investigationsEnabled
         ? "AI reviews are enabled. Reviews may send saved plans, selected repository metadata, and your answers to the configured provider. Source contents are not captured."
         : "AI reviews are disabled. Planning and local metadata capture remain available.",
+    );
+  }
+  function updateDashboardOverview(reviewRecords, queuedReviews) {
+    const total = Number(overview?.totalPoints || 0);
+    const complete = Number(overview?.confirmedDonePoints || 0);
+    const percentage = total > 0 ? Math.min(100, Math.round((complete / total) * 100)) : 0;
+    const progress = byId("progress-bar");
+    progress.value = percentage;
+    progress.setAttribute("value", String(percentage));
+    byId("progress-percent").textContent = percentage + "%";
+    byId("progress-summary").textContent = complete + " / " + total + " points";
+    byId("progress-detail").textContent = total
+      ? percentage === 100
+        ? "All planned points are complete."
+        : "Points update as you mark tasks done."
+      : "Create a sprint and tasks to track progress.";
+
+    const tasks = overview?.tasks || [];
+    const counts = tasks.reduce(
+      (summary, task) => {
+        const risk = task.riskState || "uncertain";
+        if (risk === "blocked") summary.blocked += 1;
+        else if (risk === "at_risk") summary.atRisk += 1;
+        else if (risk === "healthy") summary.healthy += 1;
+        else summary.uncertain += 1;
+        return summary;
+      },
+      { blocked: 0, atRisk: 0, healthy: 0, uncertain: 0 },
+    );
+    const riskParts = [];
+    if (counts.blocked) riskParts.push(counts.blocked + " blocked");
+    if (counts.atRisk) riskParts.push(counts.atRisk + " at risk");
+    if (counts.uncertain) riskParts.push(counts.uncertain + " uncertain");
+    byId("risk-summary").textContent =
+      riskParts.join(" · ") || (tasks.length ? "All clear" : "No tasks yet");
+    byId("risk-detail").textContent = tasks.length
+      ? counts.healthy + " healthy · " + tasks.length + " tasks in this sprint"
+      : "Risk counts appear with your saved tasks.";
+
+    const running = reviewRecords.find((record) => record.executionState === "running");
+    const pending =
+      queuedReviews.length +
+      reviewRecords.filter((record) => record.executionState === "pending").length;
+    byId("subagent-summary").textContent = running
+      ? "Investigation in progress"
+      : "Preview workspace";
+    renderSubagents(running, pending, investigationsEnabled);
+    byId("api-status").textContent = token ? "Connected" : "Waiting for sign-in";
+  }
+  function renderSubagents(running, pending, enabled) {
+    const cards = [
+      {
+        name: "OpenClaw investigator",
+        state: running ? "running" : pending ? "queued" : enabled ? "ready" : "disabled",
+        detail: running
+          ? "Following the selected evidence."
+          : pending
+            ? "Waiting for the review worker."
+            : enabled
+              ? "Ready for the next scoped review."
+              : "Enable AI reviews to connect this agent.",
+      },
+      {
+        name: "Evidence scout",
+        state: "preview",
+        detail: "Preview card for future focused evidence reads.",
+      },
+      {
+        name: "Repository watcher",
+        state: "preview",
+        detail: "Preview card for future build and repository signals.",
+      },
+    ];
+    byId("subagent-list").replaceChildren(
+      ...cards.map((card) => {
+        const item = node("article", undefined, "agent-card");
+        const heading = node("header");
+        heading.appendChild(node("strong", card.name));
+        const state = node("span", card.state, "agent-status");
+        state.dataset.state = card.state === "preview" ? "preview" : "live";
+        heading.appendChild(state);
+        item.appendChild(heading);
+        item.appendChild(node("p", card.detail, "muted"));
+        return item;
+      }),
     );
   }
   function updatePlan() {
@@ -781,6 +871,12 @@
     byId("sprint-finding").replaceChildren();
     byId("evidence-panel").hidden = true;
     text("progress-summary", "");
+    text("progress-percent", "0%");
+    text("progress-detail", "Loading selected sprint…");
+    text("risk-summary", "Loading…");
+    text("risk-detail", "Refreshing saved task signals.");
+    byId("progress-bar").value = 0;
+    byId("progress-bar").setAttribute("value", "0");
     text("coverage-summary", "Loading selected sprint…");
   }
   async function requestReview(resync) {
@@ -947,6 +1043,7 @@
         return;
       }
       text("connection-status", "Connected to the local app");
+      text("api-status", "Connected");
       await loadSprints();
       byId("sign-in-help").hidden = true;
       status("Plans and findings are saved locally.");
@@ -959,7 +1056,10 @@
       status(errorMessage(error, "Could not connect to the local app."), true);
       if (!token) {
         if (byId("sign-in-help").hidden) signInHelp();
-      } else text("connection-status", "Unable to connect");
+      } else {
+        text("connection-status", "Unable to connect");
+        text("api-status", "Unavailable");
+      }
     }
     availability();
   }
