@@ -167,6 +167,15 @@ An answer is stored as user evidence and atomically queues a follow-up with an e
 
 ## Dashboard behavior
 
+The desktop workspace places task entry on the left, sprint tasks in the center, risk/progress
+on the right, and user agent activity below. The page fits common desktop viewports; expanded
+details and long lists scroll within their panels. Small screens use a stacked layout.
+Review cadence is developer policy and is not exposed as a dashboard setting.
+
+An opt-in `AgentActivityPort` reads bounded session metadata from OpenClaw through a separate,
+cached adapter. It never starts agent turns, reads transcripts, or supplies investigation evidence.
+User agents and subagents appear here; internal investigator history stays with recent reviews.
+
 Tasks are ordered by risk, then their dependents and deadlines.
 The dashboard shows the current cited assessment, its age, coverage gaps, uncertainty, and next check.
 Users can inspect saved evidence, correct or dismiss findings, edit plans, explicitly complete tasks, and revisit archived work.

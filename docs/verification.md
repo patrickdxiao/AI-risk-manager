@@ -1,5 +1,29 @@
 # Local verification
 
+## V2 dashboard — September 25, 2026
+
+The built application was exercised in Chrome against temporary SQLite state and two synthetic
+Git repositories, with a scripted review provider and mock agent sessions. Checks covered:
+
+- Sprint/task creation and editing, dependencies, validation, completion, reopening, and archive rollover.
+- Repository discovery, explicit scope, metadata capture/resync, evidence viewing, review answers, feedback, and cancellation.
+- Points changing from 0% to 50% to 100%, and completed points surviving sprint archival.
+- Draft preservation during polling, session reload, persisted state after restart, and fresh sign-in.
+- Agent disconnect/recovery without disabling planning; running/completed session metadata remains separate from task completion.
+- No page overflow at 1280×720, 1366×768, 1440×900, or 1920×1080. Expanded details/long lists scroll inside panels; 390×844 uses a stacked layout without horizontal overflow.
+
+Separately, an isolated **OpenClaw 2026.7.1-2 Gateway** created a parent session and a child session
+with `runStarted: false`. The production activity adapter discovered both with the correct roles
+and idle status through the real CLI. Running/completed/error states were exercised with synthetic
+responses; this pass made no model calls. The browser console had no application errors.
+
+`pnpm check` passed **53 test files / 819 tests**; `pnpm build` passed.
+The fixtures, browser profile, processes, and temporary state were removed afterward.
+
+![Dashboard at 1366×768 with synthetic tasks and user agent sessions](images/dashboard-v2.png)
+
+![Explicit task completion updates the dashboard to 100%](images/dashboard-v2-complete.png)
+
 ## HTTP latency
 
 Run `pnpm benchmark` to build the app and measure real loopback HTTP requests against a temporary SQLite database.

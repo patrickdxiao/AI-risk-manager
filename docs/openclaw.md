@@ -1,5 +1,20 @@
 # OpenClaw runtime setup
 
+## Show your agents in the dashboard
+
+Run `pnpm gateway --openclaw-activity` with your existing Gateway configuration to show recent
+agent and subagent sessions. This read-only connection is independent of the investigator below;
+both flags can be used together. It uses the same `OPENCLAW_STATE_DIR` and `OPENCLAW_CONFIG_PATH`
+environment as the OpenClaw CLI, so select the Gateway that owns the sessions you want to see.
+
+- Reads at most 30 recent sessions with `sessions.list`, refreshed every 15 seconds.
+- Reads labels, parent relationships, update times, and runtime status; never transcripts.
+- Excludes this application's internal investigation sessions.
+- Uses the Gateway's active-run flag for running status, and explicit saved outcomes for completed/failed sessions. Recency alone does not establish liveness or task completion.
+- Shows an unavailable state on connection or format errors; planning remains usable.
+
+## Enable the investigator
+
 This adapter supports **OpenClaw 2026.7.1-2**. It checks the installed version, creates a fresh session, and checks that the session's effective inventory contains exactly the four `development-risk` plugin tools before requesting an agent turn. It uses `gateway call agent --expect-final`; the ordinary `openclaw agent` command in this version can fall back to an embedded runtime with a different tool policy.
 
 Build the local application first:

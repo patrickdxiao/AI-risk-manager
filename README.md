@@ -2,16 +2,16 @@
 
 A local-first agent that investigates blockers and at-risk work across one developer's sprints and repositories.
 
-- **Dashboard** — Plan sprints, tasks, and dependencies across repositories; track point progress, risk signals, and review activity. You decide when work is complete.
+- **Dashboard** — Plan tasks and dependencies; track points, risks, and your OpenClaw agents in one desktop workspace. You decide when work is complete.
 - **Git adapter** — Capture metadata from approved repositories without fetching, editing, or executing their code.
-- **OpenClaw investigator** — Follow saved evidence and report risks with citations, uncertainty, and next checks. The dashboard surfaces recent review activity and leaves room for broader OpenClaw agent discovery.
+- **OpenClaw investigator** — Follow saved evidence and report risks with citations, uncertainty, and next checks.
 - **Build pipeline** — A dashboard status area is scaffolded for future CI and build signals.
 - **SQLite** — Persist plans, evidence, and review history across sessions.
 
 <p align="center">
-  <img src="docs/images/session-reload.png" width="420" alt="Development Risk Agent dashboard showing a sprint, task risk, and review controls">
+  <img src="docs/images/dashboard-v2.png" width="1100" alt="Desktop dashboard with task planning, sprint points, risks, and OpenClaw agent activity">
 </p>
-<p align="center"><em>The dashboard keeps the plan, evidence, and next check in one place.</em></p>
+<p align="center"><em>Working local dashboard with synthetic tasks and agent sessions.</em></p>
 
 ## Quick start
 
@@ -27,6 +27,7 @@ Open the one-use sign-in link printed in the terminal.
 - **Local service:** `127.0.0.1:4317`.
 - **Saved state:** `~/.development-risk-agent`, outside monitored repositories.
 - **Fresh sign-in link:** Run `pnpm dashboard` in another terminal while the service is running.
+- **Agent activity:** Add `--openclaw-activity` to read sessions from your configured Gateway. This does not start agents or enable AI reviews.
 
 ## Enable AI reviews
 
