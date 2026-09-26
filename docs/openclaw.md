@@ -8,7 +8,8 @@ both flags can be used together. It uses the same `OPENCLAW_STATE_DIR` and `OPEN
 environment as the OpenClaw CLI, so select the Gateway that owns the sessions you want to see.
 
 - Reads at most 30 recent sessions with `sessions.list`, refreshed every 15 seconds.
-- Reads labels, parent relationships, update times, and runtime status; never transcripts.
+- Click a session for its status, agent, parent, update time, model, and reported context tokens; unavailable metadata stays explicit.
+- Reads session metadata only; conversation history and tool logs are not connected.
 - Excludes this application's internal investigation sessions.
 - Uses the Gateway's active-run flag for running status, and explicit saved outcomes for completed/failed sessions. Recency alone does not establish liveness or task completion.
 - Shows an unavailable state on connection or format errors; planning remains usable.

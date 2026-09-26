@@ -9,8 +9,11 @@ const session = z.object({
   updatedAt: z.number().int().nonnegative().nullable().optional(),
   hasActiveRun: z.boolean().optional(),
   abortedLastRun: z.boolean().optional(),
-  spawnedBy: z.string().optional(),
-  parentSessionKey: z.string().optional(),
+  spawnedBy: z.string().max(1024).optional(),
+  parentSessionKey: z.string().max(1024).optional(),
+  model: z.string().max(500).optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  totalTokensFresh: z.boolean().optional(),
   status: z.string().optional(),
 });
 const response = z.object({ sessions: z.array(session).max(100) });
@@ -81,6 +84,15 @@ export class OpenClawActivityAdapter implements AgentActivityPort {
                           ? "idle"
                           : "unknown",
               updatedAt: row.updatedAt ?? null,
+              ...(row.parentSessionKey
+                ? { parentSessionKey: row.parentSessionKey }
+                : row.spawnedBy
+                  ? { parentSessionKey: row.spawnedBy }
+                  : {}),
+              ...(row.model ? { model: row.model } : {}),
+              ...(row.totalTokens !== undefined && row.totalTokensFresh === true
+                ? { contextTokens: row.totalTokens }
+                : {}),
             }),
           )
           .sort(

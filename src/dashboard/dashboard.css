@@ -157,12 +157,14 @@ nav,
   margin-top: 0.5rem;
 }
 .agent-card {
+  color: inherit;
+  text-align: left;
   padding: 0.55rem 0.7rem;
   background: #1c1d1f;
   border: 1px solid #3b3531;
   border-radius: 0.35rem;
 }
-.agent-card header {
+.agent-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -173,7 +175,8 @@ nav,
 .agent-card strong {
   font-size: 0.95rem;
 }
-.agent-card p {
+.agent-card > .muted {
+  display: block;
   margin: 0.15rem 0 0;
 }
 .agent-status {
@@ -553,7 +556,7 @@ nav button {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.agent-card header {
+.agent-heading {
   align-items: start;
 }
 .agent-card .muted {
@@ -680,4 +683,20 @@ dialog::backdrop {
 }
 dialog .section-heading {
   justify-content: space-between;
+}
+
+.agent-card:hover {
+  border-color: #fb542b;
+}
+.session-metadata {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem 1rem;
+}
+.session-metadata dt {
+  color: #a9a198;
+}
+.session-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
 }

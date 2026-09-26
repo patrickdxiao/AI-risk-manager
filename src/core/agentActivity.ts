@@ -6,6 +6,10 @@ export interface AgentSession {
   readonly kind: "agent" | "subagent";
   readonly state: "running" | "completed" | "failed" | "idle" | "stopped" | "unknown";
   readonly updatedAt: number | null;
+  readonly parentSessionKey?: string;
+  readonly model?: string;
+  /** Latest reported context snapshot, not cumulative usage or cost. */
+  readonly contextTokens?: number;
 }
 export interface AgentActivity {
   readonly status: "connected" | "disabled" | "unavailable";

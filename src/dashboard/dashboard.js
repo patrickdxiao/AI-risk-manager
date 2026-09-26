@@ -8,7 +8,8 @@
   );
   const STORAGE_KEY = "development-risk.sprint";
   const SESSION_KEY = "development-risk.session";
-  let token, sprintId, overview, editingTask, timer;
+  let token, sprintId, overview, editingTask, timer, selectedAgentKey;
+  let agentSessions = [];
   let sprints = [],
     repositories = [],
     archive = [],
@@ -323,9 +324,10 @@
       if ([archived, reviews, registered, runtime].some((result) => result.status === "rejected"))
         status("Some saved data could not be refreshed. Retrying shortly.", true);
       updateDashboardOverview();
-      renderChanged("subagent-list", activity.status === "fulfilled" ? activity.value : null, () =>
-        renderAgentActivity(activity.status === "fulfilled" ? activity.value : null),
-      );
+      const agentActivity = activity.status === "fulfilled" ? activity.value : null;
+      agentSessions = agentActivity?.status === "connected" ? agentActivity.sessions : [];
+      renderChanged("subagent-list", agentActivity, () => renderAgentActivity(agentActivity));
+      if (byId("agent-dialog").open) renderAgentDetail();
       text("api-status", runtime.status === "fulfilled" ? "Connected" : "Unavailable");
       renderChanged("sprint-finding", overview?.sprintRisk, () => {
         byId("sprint-finding").replaceChildren();
@@ -489,17 +491,25 @@
     );
     byId("subagent-list").replaceChildren(
       ...cards.map((card) => {
-        const item = node("article", undefined, "agent-card");
-        const heading = node("header");
+        const item = node("button", undefined, "agent-card");
+        item.type = "button";
+        item.setAttribute("aria-label", "View session: " + card.label);
+        item.setAttribute("aria-haspopup", "dialog");
+        item.addEventListener("click", () => {
+          selectedAgentKey = card.key;
+          renderAgentDetail();
+          byId("agent-dialog").showModal();
+        });
+        const heading = node("span", undefined, "agent-heading");
         heading.appendChild(node("strong", card.label));
         const state = node("span", card.state, "agent-status");
         state.dataset.state = card.state;
         heading.appendChild(state);
         item.appendChild(heading);
-        item.appendChild(node("p", card.agentId + " · " + card.kind, "muted"));
+        item.appendChild(node("span", card.agentId + " · " + card.kind, "muted"));
         item.appendChild(
           node(
-            "p",
+            "span",
             card.updatedAt === null ? "Update time unknown" : date(card.updatedAt),
             "muted",
           ),
@@ -509,6 +519,31 @@
     );
     if (connected && !cards.length)
       byId("subagent-list").appendChild(node("p", "No recent agent sessions.", "muted"));
+  }
+  function renderAgentDetail() {
+    const card = agentSessions.find((session) => session.key === selectedAgentKey);
+    text("agent-detail-title", card?.label || "Session unavailable");
+    const detail = byId("agent-detail");
+    detail.replaceChildren();
+    if (!card) {
+      detail.appendChild(node("p", "This session is no longer in the latest activity list."));
+      return;
+    }
+    const metadata = node("dl", undefined, "session-metadata");
+    for (const [label, value] of [
+      ["Status", human(card.state)],
+      ["Agent", card.agentId],
+      ["Type", card.kind],
+      ["Last update", date(card.updatedAt)],
+      ["Model", card.model || "Not reported"],
+      ["Context tokens", card.contextTokens?.toLocaleString() ?? "Not reported"],
+      ["Parent session", card.parentSessionKey || "Not reported"],
+      ["Session", card.key],
+    ]) {
+      metadata.appendChild(node("dt", label));
+      metadata.appendChild(node("dd", value));
+    }
+    detail.appendChild(metadata);
   }
   function updateSprint() {
     const sprint = overview?.sprint;
@@ -906,6 +941,7 @@
   }
   for (const name of ["tasks", "archive"])
     byId("show-" + name).addEventListener("click", () => selectView(name));
+  byId("close-agent").addEventListener("click", () => byId("agent-dialog").close());
   byId("create-sprint").addEventListener("click", () => openSprint(false));
   byId("edit-sprint").addEventListener("click", () => openSprint(true));
   byId("close-sprint").addEventListener("click", () => byId("sprint-dialog").close());

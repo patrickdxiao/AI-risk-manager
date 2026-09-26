@@ -47,6 +47,9 @@ describe("OpenClaw activity metadata", () => {
             displayName: "Test checkout",
             hasActiveRun: true,
             spawnedBy: "agent:dev:main",
+            model: "test-model",
+            totalTokens: 1234,
+            totalTokensFresh: true,
           },
           { key: "agent:qa:main", updatedAt: 1000 },
           { key: "agent:ops:main", abortedLastRun: true },
@@ -61,6 +64,9 @@ describe("OpenClaw activity metadata", () => {
       agentId: "dev",
       kind: "subagent",
       label: "Test checkout",
+      parentSessionKey: "agent:dev:main",
+      model: "test-model",
+      contextTokens: 1234,
     });
     expect(JSON.stringify(result)).not.toContain("private");
     expect(JSON.stringify(result)).not.toContain("internal");
@@ -74,6 +80,17 @@ describe("OpenClaw activity metadata", () => {
       includeLastMessage: false,
     });
     expect(runner.mock.calls[0]?.[2]).toEqual({ timeoutMs: 6000, maxOutputBytes: 262144 });
+  });
+
+  it.each([false, undefined])("omits stale or unknown token snapshots (%s)", async (fresh) => {
+    const adapter = new OpenClawActivityAdapter(() =>
+      Promise.resolve(
+        JSON.stringify({
+          sessions: [{ key: "agent:dev:main", totalTokens: 1234, totalTokensFresh: fresh }],
+        }),
+      ),
+    );
+    expect((await adapter.list()).sessions[0]).not.toHaveProperty("contextTokens");
   });
 
   it("coalesces polls and caches failures briefly, then recovers without exposing errors", async () => {

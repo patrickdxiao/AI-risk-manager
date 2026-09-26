@@ -79,6 +79,7 @@ describe("dashboard user flow", () => {
             status: "connected",
             sessions: [
               {
+                key: "agent:builder:main",
                 label: "Implement checkout",
                 agentId: "builder",
                 kind: "agent",
@@ -86,6 +87,7 @@ describe("dashboard user flow", () => {
                 updatedAt: 123,
               },
               {
+                key: "agent:tester:subagent:tests",
                 label: "Verify checkout",
                 agentId: "tester",
                 kind: "subagent",
@@ -101,6 +103,51 @@ describe("dashboard user flow", () => {
     expect(client.content("subagent-list")).not.toContain("investigator");
     expect(client.content("agent-activity-note")).toContain("not proof");
     expect(client.content("progress-percent")).toBe("0%");
+    await client.get("subagent-list").children[1]?.emit("click");
+    expect(client.content("agent-detail")).toContain("Not reported");
+    expect(client.content("agent-detail")).toContain("Unknown time");
+  });
+
+  it("opens session details and refreshes them without treating old activity as current", async () => {
+    let state = "running";
+    let connected = true;
+    const client = await harness(({ path }) =>
+      path === "/api/agents/activity"
+        ? {
+            status: connected ? "connected" : "unavailable",
+            sessions: connected
+              ? [
+                  {
+                    key: "agent:qa:subagent:tests",
+                    agentId: "qa",
+                    label: "Check checkout",
+                    kind: "subagent",
+                    state,
+                    updatedAt: 123,
+                    parentSessionKey: "agent:dev:main",
+                    model: "test-model",
+                    contextTokens: 0,
+                  },
+                ]
+              : [],
+          }
+        : undefined,
+    );
+    await client.get("subagent-list").children[0]?.emit("click");
+    expect(client.get("agent-dialog").open).toBe(true);
+    expect(client.content("agent-detail")).toContain("test-model");
+    expect(client.content("agent-detail")).toContain("agent:dev:main");
+    expect(client.content("agent-detail")).toContain("Context tokens 0");
+    state = "completed";
+    await client.click("refresh-button");
+    expect(client.content("agent-detail")).toContain("completed");
+    connected = false;
+    await client.click("refresh-button");
+    expect(client.content("agent-detail")).toContain("no longer in the latest activity list");
+    expect(client.content("agent-detail")).not.toContain("completed");
+    await client.click("close-agent");
+    expect(client.get("agent-dialog").open).toBe(false);
+    expect(client.requests.every((request) => !request.path.includes("history"))).toBe(true);
   });
 
   it.each(["connected", "disabled", "unavailable"])(
