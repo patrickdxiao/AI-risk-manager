@@ -8,7 +8,8 @@
   );
   const STORAGE_KEY = "development-risk.sprint";
   const SESSION_KEY = "development-risk.session";
-  let token, sprintId, overview, editingTask, timer;
+  let token, sprintId, overview, editingTask, timer, selectedAgentKey;
+  let agentSessions = [];
   let sprints = [],
     repositories = [],
     archive = [],
@@ -82,6 +83,7 @@
   }
   function status(message, error = false) {
     text("action-status", message);
+    if (byId("sprint-dialog").open) text("sprint-status", message);
     byId("action-status").dataset.error = String(error);
   }
   function rememberSprint() {
@@ -155,6 +157,8 @@
       byId(id).disabled = !token || !sprintId || busy || !investigationsEnabled;
     byId("resync-button").disabled ||= scope.size === 0;
     byId("refresh-button").disabled = !token || busy;
+    byId("create-sprint").disabled = !token || busy;
+    byId("edit-sprint").disabled = !token || busy || !overview?.sprint;
   }
   async function api(url, body, method = body === undefined ? "GET" : "POST") {
     if (!token) throw new Error("Open a new sign-in link from the local app.");
@@ -212,8 +216,17 @@
       await perform(byId(name + "-fields"), () => action(data));
     });
   }
+  function openSprint(edit) {
+    text("sprint-status", "");
+    byId("sprint-settings").hidden = !edit;
+    byId("new-sprint").hidden = edit;
+    text("sprint-dialog-title", edit ? "Edit sprint" : "Create a sprint");
+    byId("sprint-dialog").showModal();
+    byId(edit ? "settings-goal" : "sprint-goal").focus();
+  }
   function selectView(view) {
-    for (const name of ["tasks", "plan", "archive"]) {
+    byId("main-content").dataset.view = view;
+    for (const name of ["tasks", "archive"]) {
       byId(name + "-panel").hidden = name !== view;
       byId("show-" + name).setAttribute("aria-pressed", String(name === view));
     }
@@ -240,7 +253,7 @@
     );
     byId("sprint-select").value = sprintId || "";
     rememberSprint();
-    if (!sprintId) selectView("plan");
+    if (!sprintId) openSprint(false);
     availability();
   }
   async function refresh() {
@@ -254,7 +267,7 @@
     const version = generation,
       selected = sprintId;
     try {
-      const [current, archived, reviews, registered, runtime] = await Promise.allSettled([
+      const [current, archived, reviews, registered, runtime, activity] = await Promise.allSettled([
         selected ? api(path("/overview")) : Promise.resolve(undefined),
         api("/api/tasks?view=archive"),
         selected
@@ -262,6 +275,7 @@
           : Promise.resolve({ investigations: [], pending: [] }),
         api("/api/repositories"),
         api("/api/status"),
+        api("/api/agents/activity"),
       ]);
       if (version !== generation || selected !== sprintId || !token) return;
       if (current.status === "rejected") throw current.reason;
@@ -272,7 +286,7 @@
         investigationsEnabled = runtime.value.investigationsEnabled === true;
       else investigationsEnabled = false;
       updateRepositories();
-      updatePlan();
+      updateSprint();
       renderChanged("task-list", overview?.tasks || [], () =>
         renderTasks("task-list", overview?.tasks || [], false),
       );
@@ -309,6 +323,12 @@
       }
       if ([archived, reviews, registered, runtime].some((result) => result.status === "rejected"))
         status("Some saved data could not be refreshed. Retrying shortly.", true);
+      updateDashboardOverview();
+      const agentActivity = activity.status === "fulfilled" ? activity.value : null;
+      agentSessions = agentActivity?.status === "connected" ? agentActivity.sessions : [];
+      renderChanged("subagent-list", agentActivity, () => renderAgentActivity(agentActivity));
+      if (byId("agent-dialog").open) renderAgentDetail();
+      text("api-status", runtime.status === "fulfilled" ? "Connected" : "Unavailable");
       renderChanged("sprint-finding", overview?.sprintRisk, () => {
         byId("sprint-finding").replaceChildren();
         if (overview?.sprintRisk)
@@ -324,6 +344,7 @@
       text("coverage-summary", "Unassessed work stays uncertain. Dates use your device time zone.");
       text("last-updated", "Updated " + date(overview?.generatedAt || new Date().toISOString()));
     } catch (error) {
+      text("api-status", "Unavailable");
       if (version === generation)
         status(errorMessage(error, "Could not refresh saved work."), true);
     } finally {
@@ -374,7 +395,7 @@
       );
       if (!repositories.length)
         byId("repository-scope").appendChild(
-          node("p", "Approve a folder in Plan to discover repositories."),
+          node("p", "Open Manage repositories below to approve a folder."),
         );
     });
     renderChanged("repository-list", repositories, () => {
@@ -411,14 +432,124 @@
         : "AI reviews are disabled. Planning and local metadata capture remain available.",
     );
   }
-  function updatePlan() {
+  function updateDashboardOverview() {
+    const total = Number(overview?.totalPoints || 0);
+    const complete = Number(overview?.confirmedDonePoints || 0);
+    const percentage = total > 0 ? Math.min(100, Math.round((complete / total) * 100)) : 0;
+    const progress = byId("progress-bar");
+    progress.value = percentage;
+    progress.setAttribute("value", String(percentage));
+    byId("progress-percent").textContent = percentage + "%";
+    byId("progress-summary").textContent = complete + " / " + total + " points";
+    byId("progress-detail").textContent = total
+      ? percentage === 100
+        ? "All planned points are complete."
+        : "Points update as you mark tasks done."
+      : "Create a sprint and tasks to track progress.";
+
+    const tasks = (overview?.tasks || []).filter((task) => task.state !== "done");
+    const counts = tasks.reduce(
+      (summary, task) => {
+        const risk = task.riskState || "uncertain";
+        if (risk === "blocked") summary.blocked += 1;
+        else if (risk === "at_risk") summary.atRisk += 1;
+        else if (risk === "healthy") summary.healthy += 1;
+        else summary.uncertain += 1;
+        return summary;
+      },
+      { blocked: 0, atRisk: 0, healthy: 0, uncertain: 0 },
+    );
+    const riskParts = [];
+    if (counts.blocked) riskParts.push(counts.blocked + " blocked");
+    if (counts.atRisk) riskParts.push(counts.atRisk + " at risk");
+    if (counts.uncertain) riskParts.push(counts.uncertain + " uncertain");
+    byId("risk-summary").textContent =
+      riskParts.join(" · ") ||
+      (tasks.length ? "All clear" : total ? "No unfinished tasks" : "No tasks yet");
+    byId("risk-detail").textContent = tasks.length
+      ? counts.healthy + " healthy · " + tasks.length + " unfinished tasks"
+      : "No unfinished tasks.";
+  }
+  function renderAgentActivity(activity) {
+    const connected = activity?.status === "connected";
+    const cards = connected ? activity.sessions : [];
+    text(
+      "subagent-summary",
+      connected
+        ? cards.length + " recent sessions"
+        : activity?.status === "disabled"
+          ? "Not connected"
+          : "Connection unavailable",
+    );
+    text(
+      "agent-activity-note",
+      connected
+        ? "Session activity is not proof of task completion."
+        : activity?.status === "disabled"
+          ? "Connect your OpenClaw Gateway with --openclaw-activity when starting the app."
+          : "Could not reach your OpenClaw Gateway. Retrying automatically.",
+    );
+    byId("subagent-list").replaceChildren(
+      ...cards.map((card) => {
+        const item = node("button", undefined, "agent-card");
+        item.type = "button";
+        item.setAttribute("aria-label", "View session: " + card.label);
+        item.setAttribute("aria-haspopup", "dialog");
+        item.addEventListener("click", () => {
+          selectedAgentKey = card.key;
+          renderAgentDetail();
+          byId("agent-dialog").showModal();
+        });
+        const heading = node("span", undefined, "agent-heading");
+        heading.appendChild(node("strong", card.label));
+        const state = node("span", card.state, "agent-status");
+        state.dataset.state = card.state;
+        heading.appendChild(state);
+        item.appendChild(heading);
+        item.appendChild(node("span", card.agentId + " · " + card.kind, "muted"));
+        item.appendChild(
+          node(
+            "span",
+            card.updatedAt === null ? "Update time unknown" : date(card.updatedAt),
+            "muted",
+          ),
+        );
+        return item;
+      }),
+    );
+    if (connected && !cards.length)
+      byId("subagent-list").appendChild(node("p", "No recent agent sessions.", "muted"));
+  }
+  function renderAgentDetail() {
+    const card = agentSessions.find((session) => session.key === selectedAgentKey);
+    text("agent-detail-title", card?.label || "Session unavailable");
+    const detail = byId("agent-detail");
+    detail.replaceChildren();
+    if (!card) {
+      detail.appendChild(node("p", "This session is no longer in the latest activity list."));
+      return;
+    }
+    const metadata = node("dl", undefined, "session-metadata");
+    for (const [label, value] of [
+      ["Status", human(card.state)],
+      ["Agent", card.agentId],
+      ["Type", card.kind],
+      ["Last update", date(card.updatedAt)],
+      ["Model", card.model || "Not reported"],
+      ["Context tokens", card.contextTokens?.toLocaleString() ?? "Not reported"],
+      ["Parent session", card.parentSessionKey || "Not reported"],
+      ["Session", card.key],
+    ]) {
+      metadata.appendChild(node("dt", label));
+      metadata.appendChild(node("dd", value));
+    }
+    detail.appendChild(metadata);
+  }
+  function updateSprint() {
     const sprint = overview?.sprint;
-    byId("sprint-settings").hidden = !sprint;
     byId("next-sprint-note").hidden = !sprint;
-    text("new-sprint-title", sprint ? "Create the next sprint" : "Create a sprint");
     renderChanged("sprint-settings", sprint?.id, () => {
       byId("settings-goal").value = sprint?.goal || "";
-      byId("settings-cadence").value = String(sprint?.reviewCadenceMinutes || 30);
       byId("settings-assumptions").value = (sprint?.assumptions || []).join("\n");
     });
     text(
@@ -465,9 +596,7 @@
     const list = byId(target);
     list.replaceChildren();
     if (!tasks.length) {
-      list.appendChild(
-        node("li", archived ? "No archived tasks." : "Add a task in Plan to begin."),
-      );
+      list.appendChild(node("li", archived ? "No archived tasks." : "Add a task to begin."));
       return;
     }
     for (const task of tasks) {
@@ -481,8 +610,13 @@
         else openTasks.delete(task.id);
       });
       heading.appendChild(node("span", task.title));
-      const badge = node("span", archived ? "done" : human(task.riskState || "uncertain"), "badge");
-      if (!archived) badge.dataset.risk = task.riskState || "uncertain";
+      heading.appendChild(node("span", String(task.points) + " pts", "task-points"));
+      const badge = node(
+        "span",
+        archived || task.state === "done" ? "done" : human(task.riskState || "uncertain"),
+        "badge",
+      );
+      if (!archived && task.state !== "done") badge.dataset.risk = task.riskState || "uncertain";
       heading.appendChild(badge);
       summary.appendChild(heading);
       details.appendChild(summary);
@@ -754,19 +888,21 @@
     ])
       byId(id).value = String(value);
     rendered.delete("task-dependencies");
-    updatePlan();
+    updateSprint();
     for (const option of byId("task-dependencies").options)
       option.selected = (task.dependencyIds || []).includes(option.value);
     text("task-form-title", "Edit task");
     text("save-task", "Save changes");
     byId("cancel-edit").hidden = false;
-    selectView("plan");
+    selectView("tasks");
+    byId("task-options").open = true;
     byId("task-title").focus();
   }
   function clearEditor() {
     editingTask = undefined;
     byId("task-form").reset();
     byId("task-points").value = "1";
+    byId("task-options").open = false;
     text("task-form-title", "Add a task");
     text("save-task", "Add task");
     byId("cancel-edit").hidden = true;
@@ -781,6 +917,12 @@
     byId("sprint-finding").replaceChildren();
     byId("evidence-panel").hidden = true;
     text("progress-summary", "");
+    text("progress-percent", "0%");
+    text("progress-detail", "Loading selected sprint…");
+    text("risk-summary", "Loading…");
+    text("risk-detail", "Refreshing saved task signals.");
+    byId("progress-bar").value = 0;
+    byId("progress-bar").setAttribute("value", "0");
     text("coverage-summary", "Loading selected sprint…");
   }
   async function requestReview(resync) {
@@ -797,8 +939,12 @@
     );
     selectView("tasks");
   }
-  for (const name of ["tasks", "plan", "archive"])
+  for (const name of ["tasks", "archive"])
     byId("show-" + name).addEventListener("click", () => selectView(name));
+  byId("close-agent").addEventListener("click", () => byId("agent-dialog").close());
+  byId("create-sprint").addEventListener("click", () => openSprint(false));
+  byId("edit-sprint").addEventListener("click", () => openSprint(true));
+  byId("close-sprint").addEventListener("click", () => byId("sprint-dialog").close());
   byId("sprint-select").addEventListener("change", async () => {
     sprintId = byId("sprint-select").value;
     generation += 1;
@@ -820,7 +966,7 @@
     byId(id).addEventListener("click", () => perform(byId(id), action));
   byId("cancel-edit").addEventListener("click", () => {
     clearEditor();
-    updatePlan();
+    updateSprint();
   });
   byId("close-evidence").addEventListener("click", () => {
     byId("evidence-panel").hidden = true;
@@ -847,7 +993,6 @@
       goal: formValue(data, "goal"),
       startAt: utcDate(formValue(data, "startAt")),
       endAt: utcDate(formValue(data, "endAt")),
-      reviewCadenceMinutes: Number(formValue(data, "reviewCadenceMinutes")),
       assumptions: lines(formValue(data, "assumptions")),
       state: "active",
       repositoryIds: selectedRepositories(),
@@ -855,20 +1000,24 @@
     generation += 1;
     clearSprint();
     await loadSprints(response.sprint.id);
+    byId("sprint-dialog").close();
+    byId("sprint-goal").value = "";
+    byId("sprint-assumptions").value = "";
     status("Sprint saved.");
+    selectView("tasks");
   });
   form("settings", async (data) => {
     await api(
       path(""),
       {
         goal: formValue(data, "goal"),
-        reviewCadenceMinutes: Number(formValue(data, "reviewCadenceMinutes")),
         assumptions: lines(formValue(data, "assumptions")),
         repositoryIds: selectedRepositories(),
       },
       "PATCH",
     );
     await loadSprints();
+    byId("sprint-dialog").close();
     status("Sprint settings saved.");
   });
   form("task", async (data) => {
@@ -947,6 +1096,7 @@
         return;
       }
       text("connection-status", "Connected to the local app");
+      text("api-status", "Connected");
       await loadSprints();
       byId("sign-in-help").hidden = true;
       status("Plans and findings are saved locally.");
@@ -959,7 +1109,10 @@
       status(errorMessage(error, "Could not connect to the local app."), true);
       if (!token) {
         if (byId("sign-in-help").hidden) signInHelp();
-      } else text("connection-status", "Unable to connect");
+      } else {
+        text("connection-status", "Unable to connect");
+        text("api-status", "Unavailable");
+      }
     }
     availability();
   }

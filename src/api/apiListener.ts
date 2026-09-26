@@ -11,6 +11,7 @@ export interface StartLocalApiOptions {
   readonly stateDir: string;
   readonly port?: number;
   readonly investigationAgentId?: string;
+  readonly openClawActivity?: boolean;
   readonly writeLine?: (line: string) => void;
   readonly writeWarning?: (line: string) => void;
 }
@@ -34,13 +35,19 @@ export interface LocalApiListenerRuntime {
 
 export interface StartLocalApiDependencies {
   createRuntime(
-    options: Pick<CreateLocalApiRuntimeOptions, "stateDir" | "openClaw" | "writeWarning">,
+    options: Pick<
+      CreateLocalApiRuntimeOptions,
+      "stateDir" | "openClaw" | "openClawActivity" | "writeWarning"
+    >,
   ): Promise<LocalApiListenerRuntime>;
 }
 
 const DEFAULT_DEPENDENCIES: StartLocalApiDependencies = Object.freeze({
   createRuntime: (
-    options: Pick<CreateLocalApiRuntimeOptions, "stateDir" | "openClaw" | "writeWarning">,
+    options: Pick<
+      CreateLocalApiRuntimeOptions,
+      "stateDir" | "openClaw" | "openClawActivity" | "writeWarning"
+    >,
   ) => createLocalApiRuntime(options),
 });
 
@@ -54,6 +61,7 @@ export async function startLocalApi(
 ): Promise<StartedLocalApi> {
   const runtime = await dependencies.createRuntime({
     stateDir: options.stateDir,
+    ...(options.openClawActivity ? { openClawActivity: true } : {}),
     ...(options.writeWarning === undefined ? {} : { writeWarning: options.writeWarning }),
     ...(options.investigationAgentId === undefined
       ? {}

@@ -7,6 +7,8 @@ import {
   GitRepositoryObservationAdapter,
 } from "../adapters/git/inspectRepository.js";
 import { OpenClawCliAdapter } from "../adapters/openclaw/openClawCli.js";
+import { OpenClawActivityAdapter } from "../adapters/openclaw/openClawActivity.js";
+import type { AgentActivityPort } from "../core/agentActivity.js";
 import {
   openSQLiteDatabase,
   readSQLiteRepositoryPaths,
@@ -43,6 +45,8 @@ export interface CreateLocalApiRuntimeOptions {
   readonly stateDir: string;
   readonly token?: string;
   readonly openClaw?: OpenClawRuntimeConfiguration;
+  readonly openClawActivity?: boolean;
+  readonly agentActivity?: AgentActivityPort;
   readonly writeWarning?: (message: string) => void;
 }
 export interface LocalApiRuntime {
@@ -138,6 +142,13 @@ export async function createLocalApiRuntime(
         captureLocally(store, observer, ids, clock, input.repositoryId),
     };
     registerPlanningRoutes(server, services);
+    const activity =
+      options.agentActivity ??
+      (options.openClawActivity ? new OpenClawActivityAdapter() : undefined);
+    server.get(
+      "/api/agents/activity",
+      () => activity?.list() ?? { status: "disabled", sessions: [] },
+    );
     registerReviewRoutes(server, services);
     registerInvestigationTools(server, {
       store,

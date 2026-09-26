@@ -257,7 +257,8 @@ describe("sprint overview", () => {
         now: () => (mode === "ended" ? "2026-10-01T00:00:00Z" : now),
       }).execute("sprint");
       expect(overview.tasks.map((row) => row.id)).toEqual(["task"]);
-      expect(overview.confirmedDonePoints).toBe(0);
+      expect(overview.confirmedDonePoints).toBe(3);
+      expect(overview.totalPoints).toBe(6);
     },
   );
 

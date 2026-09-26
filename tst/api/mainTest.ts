@@ -9,6 +9,13 @@ import { createProcessMainDependencies, parseMainOptions, runMain } from "../../
 
 describe("main", () => {
   describe("parseMainOptions", () => {
+    it("enables read-only activity independently from provider reviews", () => {
+      expect(parseMainOptions(["--openclaw-activity"], {})).toEqual({
+        stateDir: resolve(homedir(), ".development-risk-agent"),
+        port: 4317,
+        openClawActivity: true,
+      });
+    });
     it("selects a dedicated investigator explicitly or through the environment", () => {
       expect(
         parseMainOptions(["gateway", "--openclaw-agent", "risk-review"], {

@@ -72,6 +72,123 @@ const taskFields = {
 };
 
 describe("dashboard user flow", () => {
+  it("shows user agents and subagents separately from internal investigations", async () => {
+    const client = await harness(({ path }) =>
+      path === "/api/agents/activity"
+        ? {
+            status: "connected",
+            sessions: [
+              {
+                key: "agent:builder:main",
+                label: "Implement checkout",
+                agentId: "builder",
+                kind: "agent",
+                state: "running",
+                updatedAt: 123,
+              },
+              {
+                key: "agent:tester:subagent:tests",
+                label: "Verify checkout",
+                agentId: "tester",
+                kind: "subagent",
+                state: "completed",
+                updatedAt: null,
+              },
+            ],
+          }
+        : undefined,
+    );
+    expect(client.content("subagent-list")).toContain("Implement checkout");
+    expect(client.content("subagent-list")).toContain("subagent");
+    expect(client.content("subagent-list")).not.toContain("investigator");
+    expect(client.content("agent-activity-note")).toContain("not proof");
+    expect(client.content("progress-percent")).toBe("0%");
+    await client.get("subagent-list").children[1]?.emit("click");
+    expect(client.content("agent-detail")).toContain("Not reported");
+    expect(client.content("agent-detail")).toContain("Unknown time");
+  });
+
+  it("opens session details and refreshes them without treating old activity as current", async () => {
+    let state = "running";
+    let connected = true;
+    const client = await harness(({ path }) =>
+      path === "/api/agents/activity"
+        ? {
+            status: connected ? "connected" : "unavailable",
+            sessions: connected
+              ? [
+                  {
+                    key: "agent:qa:subagent:tests",
+                    agentId: "qa",
+                    label: "Check checkout",
+                    kind: "subagent",
+                    state,
+                    updatedAt: 123,
+                    parentSessionKey: "agent:dev:main",
+                    model: "test-model",
+                    contextTokens: 0,
+                  },
+                ]
+              : [],
+          }
+        : undefined,
+    );
+    await client.get("subagent-list").children[0]?.emit("click");
+    expect(client.get("agent-dialog").open).toBe(true);
+    expect(client.content("agent-detail")).toContain("test-model");
+    expect(client.content("agent-detail")).toContain("agent:dev:main");
+    expect(client.content("agent-detail")).toContain("Context tokens 0");
+    state = "completed";
+    await client.click("refresh-button");
+    expect(client.content("agent-detail")).toContain("completed");
+    connected = false;
+    await client.click("refresh-button");
+    expect(client.content("agent-detail")).toContain("no longer in the latest activity list");
+    expect(client.content("agent-detail")).not.toContain("completed");
+    await client.click("close-agent");
+    expect(client.get("agent-dialog").open).toBe(false);
+    expect(client.requests.every((request) => !request.path.includes("history"))).toBe(true);
+  });
+
+  it.each(["connected", "disabled", "unavailable"])(
+    "keeps planning available when agent activity is %s and empty",
+    async (status) => {
+      const client = await harness(({ path }) =>
+        path === "/api/agents/activity" ? { status, sessions: [] } : undefined,
+      );
+      expect(client.get("task-fields").disabled).toBe(false);
+      expect(client.content("subagent-summary")).toBe(
+        status === "connected"
+          ? "0 recent sessions"
+          : status === "disabled"
+            ? "Not connected"
+            : "Connection unavailable",
+      );
+    },
+  );
+
+  it("updates points from saved completion and excludes finished work from open risks", async () => {
+    const client = await harness(({ path }) =>
+      path.endsWith("/overview")
+        ? {
+            ...overview(),
+            confirmedDonePoints: 3,
+            tasks: [{ ...task, state: "done" }],
+          }
+        : undefined,
+    );
+    expect(client.content("progress-percent")).toBe("100%");
+    expect(client.content("progress-summary")).toContain("3 / 3");
+    expect(client.content("risk-detail")).toBe("No unfinished tasks.");
+    expect(client.content("risk-summary")).toBe("No unfinished tasks");
+  });
+
+  it("reports an unavailable API instead of connected when status refresh fails", async () => {
+    const client = await harness(({ path }) =>
+      path === "/api/status" ? failure(503, "unavailable") : undefined,
+    );
+    expect(client.content("api-status")).toBe("Unavailable");
+  });
   it("exchanges and removes the one-use fragment, stores only sprint preference, and starts plan-only", async () => {
     const client = await harness();
     expect(client.events[0]).toBe("fragment-cleared");
@@ -286,6 +403,9 @@ describe("dashboard user flow", () => {
 
   it("creates and edits a sprint without a project entity", async () => {
     const client = await harness();
+    await client.click("create-sprint");
+    expect(client.get("sprint-dialog").open).toBe(true);
+    expect(client.get("sprint-settings").hidden).toBe(true);
     await client.submit("sprint", {
       goal: "Ship safely",
       startAt: "2026-09-24T10:00",
@@ -297,11 +417,15 @@ describe("dashboard user flow", () => {
     expect(created?.body).toMatchObject({
       goal: "Ship safely",
       state: "active",
-      reviewCadenceMinutes: 60,
       assumptions: ["One engineer"],
       repositoryIds: [],
     });
     expect(created?.body).not.toHaveProperty("projectId");
+    expect(created?.body).not.toHaveProperty("reviewCadenceMinutes");
+    expect(client.get("sprint-dialog").open).toBe(false);
+    await client.click("edit-sprint");
+    expect(client.get("new-sprint").hidden).toBe(true);
+    expect(client.get("settings-goal").value).toBe(sprint.goal);
     await client.submit("settings", {
       goal: "Reduce scope",
       reviewCadenceMinutes: "30",
@@ -310,6 +434,23 @@ describe("dashboard user flow", () => {
     expect(
       client.requests.find((r) => r.path === "/api/sprints/sprint-1" && r.method === "PATCH")?.body,
     ).toMatchObject({ goal: "Reduce scope" });
+  });
+
+  it("keeps failed sprint edits open with an error and preserves drafts on close", async () => {
+    const client = await harness(({ method }) =>
+      method === "PATCH"
+        ? { responseStatus: 400, responseBody: { error: { code: "validation_error" } } }
+        : undefined,
+    );
+    await client.click("edit-sprint");
+    client.get("settings-goal").value = "Draft goal";
+    await client.submit("settings", { goal: "Draft goal", assumptions: "" });
+    expect(client.get("sprint-dialog").open).toBe(true);
+    expect(client.content("sprint-status")).toContain("Check the required fields");
+    await client.click("close-sprint");
+    expect(client.get("sprint-dialog").open).toBe(false);
+    await client.click("edit-sprint");
+    expect(client.get("settings-goal").value).toBe("Draft goal");
   });
 
   it("discovers only supplied roots and surfaces partial-scan issues", async () => {
@@ -470,6 +611,8 @@ describe("dashboard user flow", () => {
     const empty = await harness(({ path }) =>
       path === "/api/sprints" ? { sprints: [] } : undefined,
     );
+    expect(empty.get("sprint-dialog").open).toBe(true);
+    expect(empty.get("edit-sprint").disabled).toBe(true);
     expect(empty.get("sprint-fields").disabled).toBe(false);
     expect(empty.get("task-fields").disabled).toBe(true);
     const locked = await harness(undefined, "");
@@ -701,6 +844,7 @@ function defaultResponse({ path, method }: Request): unknown {
   if (path === "/api/ui/bootstrap")
     return { token: browserToken, expiresAt: Date.now() + 43_200_000 };
   if (path === "/api/status") return { investigationsEnabled: true };
+  if (path === "/api/agents/activity") return { status: "disabled", sessions: [] };
   if (path === "/api/sprints") return method === "POST" ? { sprint } : { sprints: [sprint] };
   if (path.endsWith("/overview")) return overview();
   if (path === "/api/tasks?view=archive") return { tasks: [] };
@@ -770,6 +914,12 @@ class Element {
   }
   setAttribute(key: string, value: string) {
     this.attributes[key] = value;
+  }
+  showModal() {
+    this.open = true;
+  }
+  close() {
+    this.open = false;
   }
   reset() {}
   focus() {}
