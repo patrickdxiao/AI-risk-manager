@@ -20,9 +20,18 @@ responses; this pass made no model calls. The browser console had no application
 `pnpm check` passed **53 test files / 819 tests**; `pnpm build` passed.
 The fixtures, browser profile, processes, and temporary state were removed afterward.
 
+A September 26 follow-up removed the Plan tab in favor of **New sprint** / **Edit sprint**
+and moved repository setup under Review scope. Chrome checks covered these controls, discovery/resync,
+50% → 80% → 100% completion, archive rollover, and agent details with Enter/Escape keyboard access.
+The updated workspace fit 1280×720 and 1366×768 without page scrolling; the details dialog also fit
+390×844 without horizontal overflow. `pnpm check` passed **53 files / 823 tests** and the build passed.
+The isolated test tab, server, and state were removed; the requested demo preview remains open.
+
 ![Dashboard at 1366×768 with synthetic tasks and user agent sessions](images/dashboard-v2.png)
 
-![Explicit task completion updates the dashboard to 100%](images/dashboard-v2-complete.png)
+![Completed points remain at 100% after tasks move into Archive](images/dashboard-v2-complete.png)
+
+![Clickable session details with synthetic OpenClaw metadata](images/dashboard-agent-detail.png)
 
 ## HTTP latency
 

@@ -170,6 +170,8 @@ An answer is stored as user evidence and atomically queues a follow-up with an e
 The desktop workspace places task entry on the left, sprint tasks in the center, risk/progress
 on the right, and user agent activity below. The page fits common desktop viewports; expanded
 details and long lists scroll within their panels. Small screens use a stacked layout.
+Sprint creation and editing open beside the sprint selector; repository setup lives under Review scope.
+Clicking an agent opens its available session metadata in a dialog, refreshed while open.
 Review cadence is developer policy and is not exposed as a dashboard setting.
 
 An opt-in `AgentActivityPort` reads bounded session metadata from OpenClaw through a separate,
