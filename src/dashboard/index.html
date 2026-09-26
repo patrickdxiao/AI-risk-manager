@@ -85,13 +85,13 @@
           <p class="muted">CI and build signals will appear here.</p>
         </article>
       </section>
-      <section class="subagents-panel" aria-labelledby="subagents-title">
+      <section class="subagents-panel" aria-labelledby="agent-activity-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Investigation crew</p>
-            <h2 id="subagents-title">Subagents</h2>
+            <p class="eyebrow">Agent activity</p>
+            <h2 id="agent-activity-title">Recent agent work</h2>
           </div>
-          <p id="subagent-summary" class="muted">Preview workspace</p>
+          <p id="subagent-summary" class="muted">OpenClaw activity</p>
         </div>
         <div id="subagent-list" class="agent-grid"></div>
       </section>
@@ -167,15 +167,7 @@
                   <fieldset id="settings-fields" disabled>
                     <label for="settings-goal">Goal</label>
                     <input id="settings-goal" name="goal" maxlength="2000" required />
-                    <label for="settings-cadence">Review interval in minutes</label>
-                    <input
-                      id="settings-cadence"
-                      name="reviewCadenceMinutes"
-                      type="number"
-                      min="1"
-                      step="1"
-                      required
-                    />
+                    <input id="settings-cadence" name="reviewCadenceMinutes" type="hidden" />
                     <label for="settings-assumptions">Assumptions, one per line</label>
                     <textarea id="settings-assumptions" name="assumptions" rows="2"></textarea>
                     <button type="submit">Save sprint settings</button>
@@ -202,16 +194,7 @@
                     </div>
                   </div>
                   <p class="muted input-timezone">Enter dates in your device time zone.</p>
-                  <label for="review-cadence">Review interval in minutes</label
-                  ><input
-                    id="review-cadence"
-                    name="reviewCadenceMinutes"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value="30"
-                    required
-                  />
+                  <input id="review-cadence" name="reviewCadenceMinutes" type="hidden" value="30" />
                   <label for="sprint-assumptions">Assumptions, one per line</label
                   ><textarea id="sprint-assumptions" name="assumptions" rows="2"></textarea>
                   <button type="submit">Create sprint</button>

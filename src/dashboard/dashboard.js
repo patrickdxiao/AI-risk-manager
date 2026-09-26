@@ -459,11 +459,11 @@
       reviewRecords.filter((record) => record.executionState === "pending").length;
     byId("subagent-summary").textContent = running
       ? "Investigation in progress"
-      : "Preview workspace";
-    renderSubagents(running, pending, investigationsEnabled);
+      : "OpenClaw activity";
+    renderAgentActivity(running, pending, investigationsEnabled, reviewRecords[0]);
     byId("api-status").textContent = token ? "Connected" : "Waiting for sign-in";
   }
-  function renderSubagents(running, pending, enabled) {
+  function renderAgentActivity(running, pending, enabled, latestReview) {
     const cards = [
       {
         name: "OpenClaw investigator",
@@ -477,14 +477,18 @@
               : "Enable AI reviews to connect this agent.",
       },
       {
-        name: "Evidence scout",
-        state: "preview",
-        detail: "Preview card for future focused evidence reads.",
+        name: "Recent review",
+        state: latestReview?.executionState || "idle",
+        detail: latestReview
+          ? human(latestReview.executionState) +
+            " · requested " +
+            date(latestReview.investigation.requestedAt)
+          : "No saved agent reviews yet.",
       },
       {
-        name: "Repository watcher",
+        name: "Other agents",
         state: "preview",
-        detail: "Preview card for future build and repository signals.",
+        detail: "OpenClaw agent discovery will appear here when exposed by the runtime.",
       },
     ];
     byId("subagent-list").replaceChildren(

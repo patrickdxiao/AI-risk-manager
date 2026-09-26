@@ -4,29 +4,30 @@
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  color: #24332d;
-  background: #f5f6f2;
-  color-scheme: light;
+  color: #f5efe7;
+  background: #0e0f10;
+  color-scheme: dark;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
+  background: #0e0f10;
 }
 header,
 main,
 footer {
   max-width: 1100px;
   margin: auto;
-  padding: 1.5rem 2rem;
+  padding: 1rem 2rem;
 }
 header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
-  padding-top: 2.5rem;
+  padding-top: 1.25rem;
 }
 h1 {
   font-size: clamp(1.4rem, 4vw, 2.1rem);
@@ -50,7 +51,7 @@ p {
 footer,
 #connection-status,
 #last-updated {
-  color: #5d6862;
+  color: #a9a198;
   font-size: 0.9rem;
 }
 .toolbar,
@@ -63,8 +64,9 @@ nav,
   flex-wrap: wrap;
 }
 .toolbar {
-  padding: 1rem;
-  background: #e8ede6;
+  padding: 0.7rem 1rem;
+  background: #1a1b1d;
+  border: 1px solid #34302d;
   border-radius: 0.5rem;
   align-items: end;
 }
@@ -72,14 +74,14 @@ nav,
   display: grid;
   grid-template-columns: 1.7fr 1fr 1fr;
   gap: 0.75rem;
-  margin: 1.25rem 0;
+  margin: 0.8rem 0;
 }
 .overview-card,
 .subagents-panel {
   min-width: 0;
-  padding: 1.1rem 1.25rem;
-  background: #fff;
-  border: 1px solid #d5ddd3;
+  padding: 0.8rem 1rem;
+  background: #171819;
+  border: 1px solid #37322f;
   border-radius: 0.5rem;
 }
 .overview-card--progress {
@@ -87,12 +89,12 @@ nav,
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 10rem;
-  background: #edf3ec;
+  min-height: 8rem;
+  background: #211a15;
 }
 .overview-card--pipeline {
   grid-column: 2 / -1;
-  background: #f8f8f5;
+  background: #141617;
 }
 .card-heading {
   display: flex;
@@ -107,7 +109,7 @@ nav,
 }
 .eyebrow {
   margin: 0;
-  color: #627068;
+  color: #b4a99e;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -115,12 +117,12 @@ nav,
 }
 .card-value {
   margin: 0;
-  color: #285c45;
+  color: #ff8b62;
   font-weight: 650;
 }
 .status-value {
   margin: 0.3rem 0 0.15rem;
-  color: #24332d;
+  color: #f5efe7;
   font-size: 1.1rem;
   font-weight: 700;
 }
@@ -131,19 +133,19 @@ nav,
   appearance: none;
 }
 .progress-bar::-webkit-progress-bar {
-  background: #d5dfd4;
+  background: #4a3b32;
   border-radius: 999px;
 }
 .progress-bar::-webkit-progress-value {
-  background: #2f7556;
+  background: #fb542b;
   border-radius: 999px;
 }
 .progress-bar::-moz-progress-bar {
-  background: #2f7556;
+  background: #fb542b;
   border-radius: 999px;
 }
 .subagents-panel {
-  margin: 1.25rem 0 1.5rem;
+  margin: 0.8rem 0 1rem;
 }
 .subagents-panel h2 {
   margin: 0.15rem 0 0;
@@ -152,12 +154,12 @@ nav,
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
-  margin-top: 1rem;
+  margin-top: 0.7rem;
 }
 .agent-card {
-  padding: 0.9rem;
-  background: #f7f9f6;
-  border: 1px solid #dce4db;
+  padding: 0.7rem 0.85rem;
+  background: #1c1d1f;
+  border: 1px solid #3b3531;
   border-radius: 0.35rem;
 }
 .agent-card header {
@@ -175,20 +177,20 @@ nav,
   margin: 0.45rem 0 0;
 }
 .agent-status {
-  color: #285c45;
+  color: #ff8b62;
   font-size: 0.76rem;
   font-weight: 700;
 }
 .agent-status[data-state="preview"] {
-  color: #765617;
+  color: #f5b46f;
 }
 .toolbar label {
   flex: 1;
   min-width: 12rem;
 }
 nav {
-  margin: 1.5rem 0;
-  border-bottom: 1px solid #cbd3ca;
+  margin: 0.8rem 0;
+  border-bottom: 1px solid #393431;
 }
 nav button {
   background: transparent;
@@ -198,7 +200,7 @@ nav button {
   border-bottom: 3px solid transparent;
 }
 nav button[aria-pressed="true"] {
-  border-bottom-color: #236348;
+  border-bottom-color: #fb542b;
   font-weight: 700;
 }
 button,
@@ -210,9 +212,9 @@ textarea {
 button {
   min-height: 2.75rem;
   padding: 0.5rem 0.9rem;
-  color: #fff;
-  background: #285c45;
-  border: 1px solid #285c45;
+  color: #16110d;
+  background: #fb542b;
+  border: 1px solid #fb542b;
   border-radius: 0.3rem;
   cursor: pointer;
 }
@@ -229,9 +231,9 @@ textarea {
   width: 100%;
   min-height: 2.75rem;
   padding: 0.5rem;
-  border: 1px solid #aab7ab;
+  border: 1px solid #514943;
   border-radius: 0.3rem;
-  background: white;
+  background: #151617;
   color: inherit;
 }
 textarea {
@@ -253,7 +255,7 @@ form button {
   margin-top: 0.8rem;
 }
 :focus-visible {
-  outline: 3px solid #b96c19;
+  outline: 3px solid #ff9879;
   outline-offset: 3px;
 }
 .plan-grid {
@@ -277,8 +279,8 @@ form button {
 .cards > li {
   margin: 0.75rem 0;
   padding: 1rem 1.2rem;
-  background: #fff;
-  border: 1px solid #d5ddd3;
+  background: #171819;
+  border: 1px solid #37322f;
   border-radius: 0.4rem;
   overflow-wrap: anywhere;
 }
@@ -313,24 +315,24 @@ summary .task-summary {
   border-radius: 0.25rem;
   padding: 0.1rem 0.45rem;
   font-size: 0.8rem;
-  background: #e9ede8;
+  background: #2b2927;
   white-space: nowrap;
 }
 [data-risk="blocked"] {
-  color: #80261d;
-  background: #fae6df;
+  color: #ffad9b;
+  background: #482420;
 }
 [data-risk="at_risk"] {
-  color: #74450b;
-  background: #faedd0;
+  color: #ffd08f;
+  background: #49351f;
 }
 [data-risk="uncertain"] {
-  color: #515b63;
-  background: #e8edf0;
+  color: #c4bbb4;
+  background: #303033;
 }
 [data-risk="healthy"] {
-  color: #236348;
-  background: #e3f0e5;
+  color: #9ee0b1;
+  background: #1f3d2b;
 }
 .actions {
   margin-top: 0.75rem;
@@ -340,7 +342,7 @@ summary .task-summary {
 #cancel-edit,
 #close-evidence {
   background: transparent;
-  color: #285c45;
+  color: #ff8b62;
 }
 .citations {
   display: flex;
@@ -352,28 +354,28 @@ summary .task-summary {
 .citations button {
   min-height: 2.75rem;
   padding: 0.3rem 0.6rem;
-  background: #edf2ed;
-  color: #285c45;
+  background: #25211e;
+  color: #ff8b62;
   border: 0;
 }
 #evidence-panel {
-  background: white;
+  background: #171819;
   padding: 1rem 1.5rem;
-  border: 1px solid #aab7ab;
+  border: 1px solid #514943;
   border-radius: 0.5rem;
 }
 pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding: 0.75rem;
-  background: #f0f3ee;
+  background: #191a1b;
   font-size: 0.85rem;
 }
 #action-status {
   min-height: 1.5rem;
 }
 #action-status[data-error="true"] {
-  color: #80261d;
+  color: #ffad9b;
 }
 #repository-list,
 #discovery-list {
@@ -387,7 +389,7 @@ pre {
   position: absolute;
   top: -5rem;
   left: 1rem;
-  background: white;
+  background: #171819;
   padding: 0.75rem;
   z-index: 1;
 }
