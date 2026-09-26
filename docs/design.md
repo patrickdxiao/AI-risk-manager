@@ -188,7 +188,7 @@ The [evaluation report](evaluation.md) includes accepted findings, reported usag
 
 [Local verification](verification.md) covers measured loopback HTTP latency, browser reload and renewed sign-in, abrupt process termination, snapshot restoration, and simulated wall-clock gaps.
 These checks do not establish power-loss durability, actual OS suspend/resume behavior, browser rendering percentiles, production latency, or resistance to broad prompt-injection campaigns.
-Use the [snapshot command](../README.md#back-up-and-restore-state) for a consistent backup that includes committed WAL data; do not copy only the live main database file.
+Use the [snapshot command](local-use.md#back-up-and-restore-state) for a consistent backup that includes committed WAL data; do not copy only the live main database file.
 Repository removal and lost citations fail closed on later scoped reads, but there is no complete revocation/purge UI or guarantee of provider-side deletion.
 
 ## Historical POC evidence
