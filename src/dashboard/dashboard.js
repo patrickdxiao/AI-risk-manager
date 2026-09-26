@@ -213,6 +213,7 @@
     });
   }
   function selectView(view) {
+    byId("main-content").dataset.view = view;
     for (const name of ["tasks", "plan", "archive"]) {
       byId(name + "-panel").hidden = name !== view;
       byId("show-" + name).setAttribute("aria-pressed", String(name === view));
@@ -254,7 +255,7 @@
     const version = generation,
       selected = sprintId;
     try {
-      const [current, archived, reviews, registered, runtime] = await Promise.allSettled([
+      const [current, archived, reviews, registered, runtime, activity] = await Promise.allSettled([
         selected ? api(path("/overview")) : Promise.resolve(undefined),
         api("/api/tasks?view=archive"),
         selected
@@ -262,6 +263,7 @@
           : Promise.resolve({ investigations: [], pending: [] }),
         api("/api/repositories"),
         api("/api/status"),
+        api("/api/agents/activity"),
       ]);
       if (version !== generation || selected !== sprintId || !token) return;
       if (current.status === "rejected") throw current.reason;
@@ -271,8 +273,6 @@
       if (runtime.status === "fulfilled")
         investigationsEnabled = runtime.value.investigationsEnabled === true;
       else investigationsEnabled = false;
-      let reviewRecords = [],
-        queuedReviews = [];
       updateRepositories();
       updatePlan();
       renderChanged("task-list", overview?.tasks || [], () =>
@@ -282,8 +282,6 @@
         renderChanged("archive-list", archive, () => renderTasks("archive-list", archive, true));
       if (reviews.status === "fulfilled") {
         const records = reviews.value.investigations;
-        reviewRecords = records;
-        queuedReviews = reviews.value.pending || [];
         for (const record of records) {
           if (
             record.investigation.status === "completed" &&
@@ -313,7 +311,11 @@
       }
       if ([archived, reviews, registered, runtime].some((result) => result.status === "rejected"))
         status("Some saved data could not be refreshed. Retrying shortly.", true);
-      updateDashboardOverview(reviewRecords, queuedReviews);
+      updateDashboardOverview();
+      renderChanged("subagent-list", activity.status === "fulfilled" ? activity.value : null, () =>
+        renderAgentActivity(activity.status === "fulfilled" ? activity.value : null),
+      );
+      text("api-status", runtime.status === "fulfilled" ? "Connected" : "Unavailable");
       renderChanged("sprint-finding", overview?.sprintRisk, () => {
         byId("sprint-finding").replaceChildren();
         if (overview?.sprintRisk)
@@ -329,6 +331,7 @@
       text("coverage-summary", "Unassessed work stays uncertain. Dates use your device time zone.");
       text("last-updated", "Updated " + date(overview?.generatedAt || new Date().toISOString()));
     } catch (error) {
+      text("api-status", "Unavailable");
       if (version === generation)
         status(errorMessage(error, "Could not refresh saved work."), true);
     } finally {
@@ -416,7 +419,7 @@
         : "AI reviews are disabled. Planning and local metadata capture remain available.",
     );
   }
-  function updateDashboardOverview(reviewRecords, queuedReviews) {
+  function updateDashboardOverview() {
     const total = Number(overview?.totalPoints || 0);
     const complete = Number(overview?.confirmedDonePoints || 0);
     const percentage = total > 0 ? Math.min(100, Math.round((complete / total) * 100)) : 0;
@@ -431,7 +434,7 @@
         : "Points update as you mark tasks done."
       : "Create a sprint and tasks to track progress.";
 
-    const tasks = overview?.tasks || [];
+    const tasks = (overview?.tasks || []).filter((task) => task.state !== "done");
     const counts = tasks.reduce(
       (summary, task) => {
         const risk = task.riskState || "uncertain";
@@ -448,62 +451,53 @@
     if (counts.atRisk) riskParts.push(counts.atRisk + " at risk");
     if (counts.uncertain) riskParts.push(counts.uncertain + " uncertain");
     byId("risk-summary").textContent =
-      riskParts.join(" · ") || (tasks.length ? "All clear" : "No tasks yet");
+      riskParts.join(" · ") ||
+      (tasks.length ? "All clear" : total ? "No unfinished tasks" : "No tasks yet");
     byId("risk-detail").textContent = tasks.length
-      ? counts.healthy + " healthy · " + tasks.length + " tasks in this sprint"
-      : "Risk counts appear with your saved tasks.";
-
-    const running = reviewRecords.find((record) => record.executionState === "running");
-    const pending =
-      queuedReviews.length +
-      reviewRecords.filter((record) => record.executionState === "pending").length;
-    byId("subagent-summary").textContent = running
-      ? "Investigation in progress"
-      : "OpenClaw activity";
-    renderAgentActivity(running, pending, investigationsEnabled, reviewRecords[0]);
-    byId("api-status").textContent = token ? "Connected" : "Waiting for sign-in";
+      ? counts.healthy + " healthy · " + tasks.length + " unfinished tasks"
+      : "No unfinished tasks.";
   }
-  function renderAgentActivity(running, pending, enabled, latestReview) {
-    const cards = [
-      {
-        name: "OpenClaw investigator",
-        state: running ? "running" : pending ? "queued" : enabled ? "ready" : "disabled",
-        detail: running
-          ? "Following the selected evidence."
-          : pending
-            ? "Waiting for the review worker."
-            : enabled
-              ? "Ready for the next scoped review."
-              : "Enable AI reviews to connect this agent.",
-      },
-      {
-        name: "Recent review",
-        state: latestReview?.executionState || "idle",
-        detail: latestReview
-          ? human(latestReview.executionState) +
-            " · requested " +
-            date(latestReview.investigation.requestedAt)
-          : "No saved agent reviews yet.",
-      },
-      {
-        name: "Other agents",
-        state: "preview",
-        detail: "OpenClaw agent discovery will appear here when exposed by the runtime.",
-      },
-    ];
+  function renderAgentActivity(activity) {
+    const connected = activity?.status === "connected";
+    const cards = connected ? activity.sessions : [];
+    text(
+      "subagent-summary",
+      connected
+        ? cards.length + " recent sessions"
+        : activity?.status === "disabled"
+          ? "Not connected"
+          : "Connection unavailable",
+    );
+    text(
+      "agent-activity-note",
+      connected
+        ? "Session activity is not proof of task completion."
+        : activity?.status === "disabled"
+          ? "Connect your OpenClaw Gateway with --openclaw-activity when starting the app."
+          : "Could not reach your OpenClaw Gateway. Retrying automatically.",
+    );
     byId("subagent-list").replaceChildren(
       ...cards.map((card) => {
         const item = node("article", undefined, "agent-card");
         const heading = node("header");
-        heading.appendChild(node("strong", card.name));
+        heading.appendChild(node("strong", card.label));
         const state = node("span", card.state, "agent-status");
-        state.dataset.state = card.state === "preview" ? "preview" : "live";
+        state.dataset.state = card.state;
         heading.appendChild(state);
         item.appendChild(heading);
-        item.appendChild(node("p", card.detail, "muted"));
+        item.appendChild(node("p", card.agentId + " · " + card.kind, "muted"));
+        item.appendChild(
+          node(
+            "p",
+            card.updatedAt === null ? "Update time unknown" : date(card.updatedAt),
+            "muted",
+          ),
+        );
         return item;
       }),
     );
+    if (connected && !cards.length)
+      byId("subagent-list").appendChild(node("p", "No recent agent sessions.", "muted"));
   }
   function updatePlan() {
     const sprint = overview?.sprint;
@@ -512,7 +506,6 @@
     text("new-sprint-title", sprint ? "Create the next sprint" : "Create a sprint");
     renderChanged("sprint-settings", sprint?.id, () => {
       byId("settings-goal").value = sprint?.goal || "";
-      byId("settings-cadence").value = String(sprint?.reviewCadenceMinutes || 30);
       byId("settings-assumptions").value = (sprint?.assumptions || []).join("\n");
     });
     text(
@@ -575,8 +568,13 @@
         else openTasks.delete(task.id);
       });
       heading.appendChild(node("span", task.title));
-      const badge = node("span", archived ? "done" : human(task.riskState || "uncertain"), "badge");
-      if (!archived) badge.dataset.risk = task.riskState || "uncertain";
+      heading.appendChild(node("span", String(task.points) + " pts", "task-points"));
+      const badge = node(
+        "span",
+        archived || task.state === "done" ? "done" : human(task.riskState || "uncertain"),
+        "badge",
+      );
+      if (!archived && task.state !== "done") badge.dataset.risk = task.riskState || "uncertain";
       heading.appendChild(badge);
       summary.appendChild(heading);
       details.appendChild(summary);
@@ -854,13 +852,15 @@
     text("task-form-title", "Edit task");
     text("save-task", "Save changes");
     byId("cancel-edit").hidden = false;
-    selectView("plan");
+    selectView("tasks");
+    byId("task-options").open = true;
     byId("task-title").focus();
   }
   function clearEditor() {
     editingTask = undefined;
     byId("task-form").reset();
     byId("task-points").value = "1";
+    byId("task-options").open = false;
     text("task-form-title", "Add a task");
     text("save-task", "Add task");
     byId("cancel-edit").hidden = true;
@@ -947,7 +947,6 @@
       goal: formValue(data, "goal"),
       startAt: utcDate(formValue(data, "startAt")),
       endAt: utcDate(formValue(data, "endAt")),
-      reviewCadenceMinutes: Number(formValue(data, "reviewCadenceMinutes")),
       assumptions: lines(formValue(data, "assumptions")),
       state: "active",
       repositoryIds: selectedRepositories(),
@@ -956,13 +955,13 @@
     clearSprint();
     await loadSprints(response.sprint.id);
     status("Sprint saved.");
+    selectView("tasks");
   });
   form("settings", async (data) => {
     await api(
       path(""),
       {
         goal: formValue(data, "goal"),
-        reviewCadenceMinutes: Number(formValue(data, "reviewCadenceMinutes")),
         assumptions: lines(formValue(data, "assumptions")),
         repositoryIds: selectedRepositories(),
       },

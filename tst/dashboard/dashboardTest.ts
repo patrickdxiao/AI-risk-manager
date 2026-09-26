@@ -72,6 +72,76 @@ const taskFields = {
 };
 
 describe("dashboard user flow", () => {
+  it("shows user agents and subagents separately from internal investigations", async () => {
+    const client = await harness(({ path }) =>
+      path === "/api/agents/activity"
+        ? {
+            status: "connected",
+            sessions: [
+              {
+                label: "Implement checkout",
+                agentId: "builder",
+                kind: "agent",
+                state: "running",
+                updatedAt: 123,
+              },
+              {
+                label: "Verify checkout",
+                agentId: "tester",
+                kind: "subagent",
+                state: "completed",
+                updatedAt: null,
+              },
+            ],
+          }
+        : undefined,
+    );
+    expect(client.content("subagent-list")).toContain("Implement checkout");
+    expect(client.content("subagent-list")).toContain("subagent");
+    expect(client.content("subagent-list")).not.toContain("investigator");
+    expect(client.content("agent-activity-note")).toContain("not proof");
+    expect(client.content("progress-percent")).toBe("0%");
+  });
+
+  it.each(["connected", "disabled", "unavailable"])(
+    "keeps planning available when agent activity is %s and empty",
+    async (status) => {
+      const client = await harness(({ path }) =>
+        path === "/api/agents/activity" ? { status, sessions: [] } : undefined,
+      );
+      expect(client.get("task-fields").disabled).toBe(false);
+      expect(client.content("subagent-summary")).toBe(
+        status === "connected"
+          ? "0 recent sessions"
+          : status === "disabled"
+            ? "Not connected"
+            : "Connection unavailable",
+      );
+    },
+  );
+
+  it("updates points from saved completion and excludes finished work from open risks", async () => {
+    const client = await harness(({ path }) =>
+      path.endsWith("/overview")
+        ? {
+            ...overview(),
+            confirmedDonePoints: 3,
+            tasks: [{ ...task, state: "done" }],
+          }
+        : undefined,
+    );
+    expect(client.content("progress-percent")).toBe("100%");
+    expect(client.content("progress-summary")).toContain("3 / 3");
+    expect(client.content("risk-detail")).toBe("No unfinished tasks.");
+    expect(client.content("risk-summary")).toBe("No unfinished tasks");
+  });
+
+  it("reports an unavailable API instead of connected when status refresh fails", async () => {
+    const client = await harness(({ path }) =>
+      path === "/api/status" ? failure(503, "unavailable") : undefined,
+    );
+    expect(client.content("api-status")).toBe("Unavailable");
+  });
   it("exchanges and removes the one-use fragment, stores only sprint preference, and starts plan-only", async () => {
     const client = await harness();
     expect(client.events[0]).toBe("fragment-cleared");
@@ -297,11 +367,11 @@ describe("dashboard user flow", () => {
     expect(created?.body).toMatchObject({
       goal: "Ship safely",
       state: "active",
-      reviewCadenceMinutes: 60,
       assumptions: ["One engineer"],
       repositoryIds: [],
     });
     expect(created?.body).not.toHaveProperty("projectId");
+    expect(created?.body).not.toHaveProperty("reviewCadenceMinutes");
     await client.submit("settings", {
       goal: "Reduce scope",
       reviewCadenceMinutes: "30",
@@ -701,6 +771,7 @@ function defaultResponse({ path, method }: Request): unknown {
   if (path === "/api/ui/bootstrap")
     return { token: browserToken, expiresAt: Date.now() + 43_200_000 };
   if (path === "/api/status") return { investigationsEnabled: true };
+  if (path === "/api/agents/activity") return { status: "disabled", sessions: [] };
   if (path === "/api/sprints") return method === "POST" ? { sprint } : { sprints: [sprint] };
   if (path.endsWith("/overview")) return overview();
   if (path === "/api/tasks?view=archive") return { tasks: [] };

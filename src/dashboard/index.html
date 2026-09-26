@@ -12,12 +12,12 @@
     <a class="skip-link" href="#main-content">Skip to workspace</a>
     <header>
       <div>
-        <h1>Sprint Risk Investigator</h1>
-        <p class="muted">Your plan, its evidence, and the next check.</p>
+        <h1>Development Risk</h1>
+        <p class="muted">Your sprint, at a glance.</p>
       </div>
       <p id="connection-status" role="status">Connecting...</p>
     </header>
-    <main id="main-content">
+    <main id="main-content" data-view="tasks">
       <section id="sign-in-help" aria-labelledby="sign-in-title" hidden>
         <h2 id="sign-in-title">Get a fresh sign-in link</h2>
         <p>Keep the local app running. In another terminal in this checkout, run:</p>
@@ -38,17 +38,72 @@
         <button id="resync-button" type="button" disabled>Resync</button>
         <button id="refresh-button" type="button" disabled>Refresh</button>
       </div>
-      <p id="provider-status" class="muted" role="status">Checking review availability…</p>
-      <p id="scope-summary" class="muted">
-        No repositories selected. Reviews use plan context only.
-      </p>
       <details class="scope-picker">
-        <summary>Repositories for this review</summary>
+        <summary>Review scope &amp; connection</summary>
+        <p id="provider-status" class="muted" role="status">Checking review availability…</p>
+        <p id="scope-summary" class="muted">
+          No repositories selected. Reviews use plan context only.
+        </p>
         <div id="repository-scope" class="scope-options"></div>
       </details>
       <p id="action-status" role="status" aria-live="polite">
         Open the sign-in link from the local app.
       </p>
+      <section id="task-editor" aria-labelledby="task-form-title">
+        <h3 id="task-form-title">Add a task</h3>
+        <form id="task-form" autocomplete="off">
+          <fieldset id="task-fields" disabled>
+            <label for="task-title">Title</label
+            ><input id="task-title" name="title" maxlength="500" required />
+            <label for="task-description">Description (optional)</label
+            ><textarea
+              id="task-description"
+              name="description"
+              maxlength="8000"
+              rows="2"
+            ></textarea>
+            <label for="task-points">Points</label
+            ><input
+              id="task-points"
+              name="points"
+              type="number"
+              min="1"
+              step="1"
+              value="1"
+              required
+            />
+            <label for="task-criteria">Completion criteria, one per line</label
+            ><textarea
+              id="task-criteria"
+              name="completionCriteria"
+              maxlength="8000"
+              rows="2"
+              required
+            ></textarea>
+            <details id="task-options">
+              <summary>Dates &amp; dependencies</summary>
+              <div class="field-pair">
+                <div>
+                  <label for="task-start">Starts</label
+                  ><input id="task-start" name="startAt" type="datetime-local" />
+                </div>
+                <div>
+                  <label for="task-end">Ends</label
+                  ><input id="task-end" name="endAt" type="datetime-local" />
+                </div>
+              </div>
+              <p class="muted">
+                Dates default to the sprint window. Enter dates in your device time zone.
+              </p>
+              <label for="task-dependencies">Prerequisite tasks (optional)</label
+              ><select id="task-dependencies" name="dependencyIds" multiple size="3"></select>
+              <p class="muted">Use Command or Control to select more than one prerequisite.</p>
+            </details>
+            <button id="save-task" type="submit">Add task</button
+            ><button id="cancel-edit" type="button" hidden>Cancel edit</button>
+          </fieldset>
+        </form>
+      </section>
       <section class="overview-grid" aria-label="Sprint overview">
         <article class="overview-card overview-card--progress">
           <div class="card-heading">
@@ -72,7 +127,6 @@
         <article class="overview-card">
           <p class="eyebrow">API status</p>
           <p id="api-status" class="status-value">Waiting for sign-in</p>
-          <p class="muted">Local service on 127.0.0.1</p>
         </article>
         <article class="overview-card">
           <p class="eyebrow">Risk signal</p>
@@ -91,9 +145,10 @@
             <p class="eyebrow">Agent activity</p>
             <h2 id="agent-activity-title">Recent agent work</h2>
           </div>
-          <p id="subagent-summary" class="muted">OpenClaw activity</p>
+          <p id="subagent-summary" class="muted">Checking connection…</p>
         </div>
         <div id="subagent-list" class="agent-grid"></div>
+        <p id="agent-activity-note" class="muted"></p>
       </section>
       <nav aria-label="Workspace views">
         <button id="show-tasks" type="button" aria-pressed="true" aria-controls="tasks-panel">
@@ -108,18 +163,23 @@
       </nav>
       <section id="tasks-panel" aria-labelledby="tasks-title">
         <div class="section-heading">
-          <h2 id="tasks-title">What needs attention</h2>
+          <h2 id="tasks-title">Sprint tasks</h2>
         </div>
         <p id="coverage-summary" class="muted">Select a sprint to see saved findings.</p>
-        <div id="sprint-finding"></div>
         <ul id="task-list" class="cards">
           <li>No tasks yet.</li>
         </ul>
-        <h2>Recent reviews</h2>
-        <p class="muted">Saved review status, including work waiting for your input.</p>
-        <ul id="review-list" class="cards">
-          <li>No reviews yet.</li>
-        </ul>
+        <details class="sprint-assessment">
+          <summary>Sprint assessment</summary>
+          <div id="sprint-finding"></div>
+        </details>
+        <details class="review-history">
+          <summary>Recent reviews</summary>
+          <p class="muted">Saved review status, including work waiting for your input.</p>
+          <ul id="review-list" class="cards">
+            <li>No reviews yet.</li>
+          </ul>
+        </details>
       </section>
       <section id="archive-panel" aria-labelledby="archive-title" hidden>
         <h2 id="archive-title">Archived tasks</h2>
@@ -133,124 +193,68 @@
       <section id="plan-panel" aria-labelledby="plan-title" hidden>
         <h2 id="plan-title">Plan the work</h2>
         <div class="plan-grid">
-          <div>
-            <section aria-labelledby="repositories-title">
-              <h3 id="repositories-title">Repositories</h3>
-              <ul id="repository-list">
-                <li>No repositories connected.</li>
-              </ul>
-              <form id="discovery-form" autocomplete="off">
-                <fieldset id="discovery-fields" disabled>
-                  <label for="discovery-root">Folder to approve and scan</label
-                  ><input
-                    id="discovery-root"
-                    name="root"
-                    placeholder="/path/to/projects"
-                    maxlength="4096"
-                    required
-                  />
-                  <label for="discovery-exclusions">Excluded folders, one per line</label
-                  ><textarea id="discovery-exclusions" name="exclusions" rows="2"></textarea>
-                  <p class="muted">Discovery stays inside this folder and skips symbolic links.</p>
-                  <button type="submit">Find repositories</button>
-                </fieldset>
-              </form>
-              <p id="discovery-status" role="status"></p>
-              <ul id="discovery-list"></ul>
-            </section>
-            <section aria-labelledby="sprint-title">
-              <h3 id="sprint-title">Sprint</h3>
-              <p id="sprint-summary" class="muted">Create a sprint to organize your tasks.</p>
-              <details id="sprint-settings" hidden>
-                <summary>Sprint settings</summary>
-                <form id="settings-form" autocomplete="off">
-                  <fieldset id="settings-fields" disabled>
-                    <label for="settings-goal">Goal</label>
-                    <input id="settings-goal" name="goal" maxlength="2000" required />
-                    <input id="settings-cadence" name="reviewCadenceMinutes" type="hidden" />
-                    <label for="settings-assumptions">Assumptions, one per line</label>
-                    <textarea id="settings-assumptions" name="assumptions" rows="2"></textarea>
-                    <button type="submit">Save sprint settings</button>
-                  </fieldset>
-                </form>
-              </details>
-              <h3 id="new-sprint-title">Create a sprint</h3>
-              <p id="next-sprint-note" class="muted" hidden>
-                Starting a new sprint keeps unfinished tasks visible and archives completed work
-                from the previous sprint.
-              </p>
-              <form id="sprint-form" autocomplete="off">
-                <fieldset id="sprint-fields" disabled>
-                  <label for="sprint-goal">Goal</label
-                  ><input id="sprint-goal" name="goal" maxlength="2000" required />
-                  <div class="field-pair">
-                    <div>
-                      <label for="sprint-start">Starts</label
-                      ><input id="sprint-start" name="startAt" type="datetime-local" required />
-                    </div>
-                    <div>
-                      <label for="sprint-end">Ends</label
-                      ><input id="sprint-end" name="endAt" type="datetime-local" required />
-                    </div>
-                  </div>
-                  <p class="muted input-timezone">Enter dates in your device time zone.</p>
-                  <input id="review-cadence" name="reviewCadenceMinutes" type="hidden" value="30" />
-                  <label for="sprint-assumptions">Assumptions, one per line</label
-                  ><textarea id="sprint-assumptions" name="assumptions" rows="2"></textarea>
-                  <button type="submit">Create sprint</button>
-                </fieldset>
-              </form>
-            </section>
-          </div>
-          <section aria-labelledby="task-form-title">
-            <h3 id="task-form-title">Add a task</h3>
-            <form id="task-form" autocomplete="off">
-              <fieldset id="task-fields" disabled>
-                <label for="task-title">Title</label
-                ><input id="task-title" name="title" maxlength="500" required />
-                <label for="task-description">Description (optional)</label
-                ><textarea
-                  id="task-description"
-                  name="description"
-                  maxlength="8000"
-                  rows="3"
-                ></textarea>
-                <label for="task-points">Points</label
+          <section aria-labelledby="repositories-title">
+            <h3 id="repositories-title">Repositories</h3>
+            <ul id="repository-list">
+              <li>No repositories connected.</li>
+            </ul>
+            <form id="discovery-form" autocomplete="off">
+              <fieldset id="discovery-fields" disabled>
+                <label for="discovery-root">Folder to approve and scan</label
                 ><input
-                  id="task-points"
-                  name="points"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value="1"
+                  id="discovery-root"
+                  name="root"
+                  placeholder="/path/to/projects"
+                  maxlength="4096"
                   required
                 />
-                <label for="task-criteria">Completion criteria, one per line</label
-                ><textarea
-                  id="task-criteria"
-                  name="completionCriteria"
-                  maxlength="8000"
-                  rows="3"
-                  required
-                ></textarea>
+                <label for="discovery-exclusions">Excluded folders, one per line</label
+                ><textarea id="discovery-exclusions" name="exclusions" rows="2"></textarea>
+                <p class="muted">Discovery stays inside this folder and skips symbolic links.</p>
+                <button type="submit">Find repositories</button>
+              </fieldset>
+            </form>
+            <p id="discovery-status" role="status"></p>
+            <ul id="discovery-list"></ul>
+          </section>
+          <section aria-labelledby="sprint-title">
+            <h3 id="sprint-title">Sprint</h3>
+            <p id="sprint-summary" class="muted">Create a sprint to organize your tasks.</p>
+            <details id="sprint-settings" hidden>
+              <summary>Sprint settings</summary>
+              <form id="settings-form" autocomplete="off">
+                <fieldset id="settings-fields" disabled>
+                  <label for="settings-goal">Goal</label>
+                  <input id="settings-goal" name="goal" maxlength="2000" required />
+                  <label for="settings-assumptions">Assumptions, one per line</label>
+                  <textarea id="settings-assumptions" name="assumptions" rows="2"></textarea>
+                  <button type="submit">Save sprint settings</button>
+                </fieldset>
+              </form>
+            </details>
+            <h3 id="new-sprint-title">Create a sprint</h3>
+            <p id="next-sprint-note" class="muted" hidden>
+              Starting a new sprint keeps unfinished tasks visible and archives completed work from
+              the previous sprint.
+            </p>
+            <form id="sprint-form" autocomplete="off">
+              <fieldset id="sprint-fields" disabled>
+                <label for="sprint-goal">Goal</label
+                ><input id="sprint-goal" name="goal" maxlength="2000" required />
                 <div class="field-pair">
                   <div>
-                    <label for="task-start">Starts</label
-                    ><input id="task-start" name="startAt" type="datetime-local" />
+                    <label for="sprint-start">Starts</label
+                    ><input id="sprint-start" name="startAt" type="datetime-local" required />
                   </div>
                   <div>
-                    <label for="task-end">Ends</label
-                    ><input id="task-end" name="endAt" type="datetime-local" />
+                    <label for="sprint-end">Ends</label
+                    ><input id="sprint-end" name="endAt" type="datetime-local" required />
                   </div>
                 </div>
-                <p class="muted">
-                  Dates default to the sprint window. Enter dates in your device time zone.
-                </p>
-                <label for="task-dependencies">Prerequisite tasks (optional)</label
-                ><select id="task-dependencies" name="dependencyIds" multiple size="4"></select>
-                <p class="muted">Use Command or Control to select more than one prerequisite.</p>
-                <button id="save-task" type="submit">Add task</button
-                ><button id="cancel-edit" type="button" hidden>Cancel edit</button>
+                <p class="muted input-timezone">Enter dates in your device time zone.</p>
+                <label for="sprint-assumptions">Assumptions, one per line</label
+                ><textarea id="sprint-assumptions" name="assumptions" rows="2"></textarea>
+                <button type="submit">Create sprint</button>
               </fieldset>
             </form>
           </section>

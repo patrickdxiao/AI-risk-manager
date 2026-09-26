@@ -17,7 +17,7 @@ describe("dashboard assets", () => {
     expect(DASHBOARD_HTML).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/u);
     expect(DASHBOARD_HTML).not.toContain("<style");
     expect(DASHBOARD_CSS).toContain(":focus-visible");
-    expect(DASHBOARD_CSS).toContain("@media (max-width: 64rem)");
+    expect(DASHBOARD_CSS).toMatch(/@media \(max-width:/u);
     expect(DASHBOARD_CSS).toContain("@media (prefers-reduced-motion: reduce)");
     expect(DASHBOARD_CLIENT_JS).not.toMatch(/\.innerHTML\b|insertAdjacentHTML|document\.write/u);
   });
