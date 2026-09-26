@@ -34,6 +34,8 @@
             <option value="">Choose a sprint</option>
           </select></label
         >
+        <button id="edit-sprint" class="secondary" type="button" disabled>Edit sprint</button>
+        <button id="create-sprint" class="secondary" type="button" disabled>New sprint</button>
         <button id="review-button" type="button" disabled>Review now</button>
         <button id="resync-button" type="button" disabled>Resync</button>
         <button id="refresh-button" type="button" disabled>Refresh</button>
@@ -45,6 +47,30 @@
           No repositories selected. Reviews use plan context only.
         </p>
         <div id="repository-scope" class="scope-options"></div>
+        <details id="repositories-manager">
+          <summary>Manage repositories</summary>
+          <ul id="repository-list">
+            <li>No repositories connected.</li>
+          </ul>
+          <form id="discovery-form" autocomplete="off">
+            <fieldset id="discovery-fields" disabled>
+              <label for="discovery-root">Folder to approve and scan</label
+              ><input
+                id="discovery-root"
+                name="root"
+                placeholder="/path/to/projects"
+                maxlength="4096"
+                required
+              />
+              <label for="discovery-exclusions">Excluded folders, one per line</label
+              ><textarea id="discovery-exclusions" name="exclusions" rows="2"></textarea>
+              <p class="muted">Discovery stays inside this folder and skips symbolic links.</p>
+              <button type="submit">Find repositories</button>
+            </fieldset>
+          </form>
+          <p id="discovery-status" role="status"></p>
+          <ul id="discovery-list"></ul>
+        </details>
       </details>
       <p id="action-status" role="status" aria-live="polite">
         Open the sign-in link from the local app.
@@ -154,9 +180,6 @@
         <button id="show-tasks" type="button" aria-pressed="true" aria-controls="tasks-panel">
           Tasks
         </button>
-        <button id="show-plan" type="button" aria-pressed="false" aria-controls="plan-panel">
-          Plan
-        </button>
         <button id="show-archive" type="button" aria-pressed="false" aria-controls="archive-panel">
           Archive
         </button>
@@ -190,76 +213,51 @@
           <li>No archived tasks.</li>
         </ul>
       </section>
-      <section id="plan-panel" aria-labelledby="plan-title" hidden>
-        <h2 id="plan-title">Plan the work</h2>
-        <div class="plan-grid">
-          <section aria-labelledby="repositories-title">
-            <h3 id="repositories-title">Repositories</h3>
-            <ul id="repository-list">
-              <li>No repositories connected.</li>
-            </ul>
-            <form id="discovery-form" autocomplete="off">
-              <fieldset id="discovery-fields" disabled>
-                <label for="discovery-root">Folder to approve and scan</label
-                ><input
-                  id="discovery-root"
-                  name="root"
-                  placeholder="/path/to/projects"
-                  maxlength="4096"
-                  required
-                />
-                <label for="discovery-exclusions">Excluded folders, one per line</label
-                ><textarea id="discovery-exclusions" name="exclusions" rows="2"></textarea>
-                <p class="muted">Discovery stays inside this folder and skips symbolic links.</p>
-                <button type="submit">Find repositories</button>
-              </fieldset>
-            </form>
-            <p id="discovery-status" role="status"></p>
-            <ul id="discovery-list"></ul>
-          </section>
-          <section aria-labelledby="sprint-title">
-            <h3 id="sprint-title">Sprint</h3>
-            <p id="sprint-summary" class="muted">Create a sprint to organize your tasks.</p>
-            <details id="sprint-settings" hidden>
-              <summary>Sprint settings</summary>
-              <form id="settings-form" autocomplete="off">
-                <fieldset id="settings-fields" disabled>
-                  <label for="settings-goal">Goal</label>
-                  <input id="settings-goal" name="goal" maxlength="2000" required />
-                  <label for="settings-assumptions">Assumptions, one per line</label>
-                  <textarea id="settings-assumptions" name="assumptions" rows="2"></textarea>
-                  <button type="submit">Save sprint settings</button>
-                </fieldset>
-              </form>
-            </details>
-            <h3 id="new-sprint-title">Create a sprint</h3>
-            <p id="next-sprint-note" class="muted" hidden>
-              Starting a new sprint keeps unfinished tasks visible and archives completed work from
-              the previous sprint.
-            </p>
-            <form id="sprint-form" autocomplete="off">
-              <fieldset id="sprint-fields" disabled>
-                <label for="sprint-goal">Goal</label
-                ><input id="sprint-goal" name="goal" maxlength="2000" required />
-                <div class="field-pair">
-                  <div>
-                    <label for="sprint-start">Starts</label
-                    ><input id="sprint-start" name="startAt" type="datetime-local" required />
-                  </div>
-                  <div>
-                    <label for="sprint-end">Ends</label
-                    ><input id="sprint-end" name="endAt" type="datetime-local" required />
-                  </div>
-                </div>
-                <p class="muted input-timezone">Enter dates in your device time zone.</p>
-                <label for="sprint-assumptions">Assumptions, one per line</label
-                ><textarea id="sprint-assumptions" name="assumptions" rows="2"></textarea>
-                <button type="submit">Create sprint</button>
-              </fieldset>
-            </form>
-          </section>
+      <dialog id="sprint-dialog" aria-labelledby="sprint-dialog-title">
+        <div class="section-heading">
+          <h2 id="sprint-dialog-title">Create a sprint</h2>
+          <button id="close-sprint" class="secondary" type="button">Close</button>
         </div>
-      </section>
+        <p id="sprint-summary" class="muted"></p>
+        <p id="sprint-status" role="status"></p>
+        <div id="sprint-settings" hidden>
+          <form id="settings-form" autocomplete="off">
+            <fieldset id="settings-fields" disabled>
+              <label for="settings-goal">Goal</label>
+              <input id="settings-goal" name="goal" maxlength="2000" required />
+              <label for="settings-assumptions">Assumptions, one per line</label>
+              <textarea id="settings-assumptions" name="assumptions" rows="2"></textarea>
+              <button type="submit">Save sprint settings</button>
+            </fieldset>
+          </form>
+        </div>
+        <div id="new-sprint">
+          <p id="next-sprint-note" class="muted" hidden>
+            Starting a new sprint keeps unfinished tasks visible and archives completed work from
+            the previous sprint.
+          </p>
+          <form id="sprint-form" autocomplete="off">
+            <fieldset id="sprint-fields" disabled>
+              <label for="sprint-goal">Goal</label
+              ><input id="sprint-goal" name="goal" maxlength="2000" required />
+              <div class="field-pair">
+                <div>
+                  <label for="sprint-start">Starts</label
+                  ><input id="sprint-start" name="startAt" type="datetime-local" required />
+                </div>
+                <div>
+                  <label for="sprint-end">Ends</label
+                  ><input id="sprint-end" name="endAt" type="datetime-local" required />
+                </div>
+              </div>
+              <p class="muted input-timezone">Enter dates in your device time zone.</p>
+              <label for="sprint-assumptions">Assumptions, one per line</label
+              ><textarea id="sprint-assumptions" name="assumptions" rows="2"></textarea>
+              <button type="submit">Create sprint</button>
+            </fieldset>
+          </form>
+        </div>
+      </dialog>
       <section id="evidence-panel" aria-labelledby="evidence-title" hidden>
         <div class="section-heading">
           <h2 id="evidence-title">Cited evidence</h2>

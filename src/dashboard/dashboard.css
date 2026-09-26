@@ -260,11 +260,6 @@ form button {
   outline: 3px solid #ff9879;
   outline-offset: 3px;
 }
-.plan-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
 .field-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -342,6 +337,7 @@ summary .task-summary {
 }
 .actions button,
 #refresh-button,
+.secondary,
 #cancel-edit,
 #close-evidence {
   background: transparent;
@@ -501,8 +497,7 @@ nav button {
 }
 #task-editor,
 #tasks-panel,
-#archive-panel,
-#plan-panel {
+#archive-panel {
   min-height: 0;
   min-width: 0;
   overflow: auto;
@@ -519,13 +514,6 @@ nav button {
 #archive-panel {
   grid-column: 2;
   grid-row: 3;
-}
-#plan-panel {
-  grid-column: 2 / 4;
-  grid-row: 3;
-}
-main[data-view="plan"] .overview-grid {
-  display: none;
 }
 .overview-grid {
   grid-column: 3;
@@ -663,7 +651,6 @@ footer {
   }
   .overview-grid,
   .agent-grid,
-  .plan-grid,
   .field-pair {
     grid-template-columns: 1fr;
   }
@@ -676,4 +663,21 @@ footer {
   .card-heading {
     gap: 0.5rem;
   }
+}
+
+dialog {
+  width: min(38rem, calc(100vw - 2rem));
+  max-height: 85dvh;
+  overflow: auto;
+  color: inherit;
+  background: #171819;
+  border: 1px solid #514943;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+dialog::backdrop {
+  background: #0009;
+}
+dialog .section-heading {
+  justify-content: space-between;
 }

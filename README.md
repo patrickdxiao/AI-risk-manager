@@ -39,8 +39,8 @@ Follow [OpenClaw setup](docs/openclaw.md), then start with your configured agent
 pnpm gateway --openclaw-agent risk-investigator
 ```
 
-- Create a sprint and tasks in **Plan**.
-- Approve a folder, discover repositories, and select which to include. No selection means plan-only.
+- Use **New sprint**, then add tasks in the left panel.
+- Under **Review scope & connection → Manage repositories**, approve a folder, discover repositories, and select which to include. No selection means plan-only.
 - Use **Resync** to capture metadata and queue a review; **Review now** uses saved evidence.
 - Inspect findings, answer follow-up questions, and mark completed tasks done yourself.
 

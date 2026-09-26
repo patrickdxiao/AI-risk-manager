@@ -82,6 +82,7 @@
   }
   function status(message, error = false) {
     text("action-status", message);
+    if (byId("sprint-dialog").open) text("sprint-status", message);
     byId("action-status").dataset.error = String(error);
   }
   function rememberSprint() {
@@ -155,6 +156,8 @@
       byId(id).disabled = !token || !sprintId || busy || !investigationsEnabled;
     byId("resync-button").disabled ||= scope.size === 0;
     byId("refresh-button").disabled = !token || busy;
+    byId("create-sprint").disabled = !token || busy;
+    byId("edit-sprint").disabled = !token || busy || !overview?.sprint;
   }
   async function api(url, body, method = body === undefined ? "GET" : "POST") {
     if (!token) throw new Error("Open a new sign-in link from the local app.");
@@ -212,9 +215,17 @@
       await perform(byId(name + "-fields"), () => action(data));
     });
   }
+  function openSprint(edit) {
+    text("sprint-status", "");
+    byId("sprint-settings").hidden = !edit;
+    byId("new-sprint").hidden = edit;
+    text("sprint-dialog-title", edit ? "Edit sprint" : "Create a sprint");
+    byId("sprint-dialog").showModal();
+    byId(edit ? "settings-goal" : "sprint-goal").focus();
+  }
   function selectView(view) {
     byId("main-content").dataset.view = view;
-    for (const name of ["tasks", "plan", "archive"]) {
+    for (const name of ["tasks", "archive"]) {
       byId(name + "-panel").hidden = name !== view;
       byId("show-" + name).setAttribute("aria-pressed", String(name === view));
     }
@@ -241,7 +252,7 @@
     );
     byId("sprint-select").value = sprintId || "";
     rememberSprint();
-    if (!sprintId) selectView("plan");
+    if (!sprintId) openSprint(false);
     availability();
   }
   async function refresh() {
@@ -274,7 +285,7 @@
         investigationsEnabled = runtime.value.investigationsEnabled === true;
       else investigationsEnabled = false;
       updateRepositories();
-      updatePlan();
+      updateSprint();
       renderChanged("task-list", overview?.tasks || [], () =>
         renderTasks("task-list", overview?.tasks || [], false),
       );
@@ -382,7 +393,7 @@
       );
       if (!repositories.length)
         byId("repository-scope").appendChild(
-          node("p", "Approve a folder in Plan to discover repositories."),
+          node("p", "Open Manage repositories below to approve a folder."),
         );
     });
     renderChanged("repository-list", repositories, () => {
@@ -499,11 +510,9 @@
     if (connected && !cards.length)
       byId("subagent-list").appendChild(node("p", "No recent agent sessions.", "muted"));
   }
-  function updatePlan() {
+  function updateSprint() {
     const sprint = overview?.sprint;
-    byId("sprint-settings").hidden = !sprint;
     byId("next-sprint-note").hidden = !sprint;
-    text("new-sprint-title", sprint ? "Create the next sprint" : "Create a sprint");
     renderChanged("sprint-settings", sprint?.id, () => {
       byId("settings-goal").value = sprint?.goal || "";
       byId("settings-assumptions").value = (sprint?.assumptions || []).join("\n");
@@ -552,9 +561,7 @@
     const list = byId(target);
     list.replaceChildren();
     if (!tasks.length) {
-      list.appendChild(
-        node("li", archived ? "No archived tasks." : "Add a task in Plan to begin."),
-      );
+      list.appendChild(node("li", archived ? "No archived tasks." : "Add a task to begin."));
       return;
     }
     for (const task of tasks) {
@@ -846,7 +853,7 @@
     ])
       byId(id).value = String(value);
     rendered.delete("task-dependencies");
-    updatePlan();
+    updateSprint();
     for (const option of byId("task-dependencies").options)
       option.selected = (task.dependencyIds || []).includes(option.value);
     text("task-form-title", "Edit task");
@@ -897,8 +904,11 @@
     );
     selectView("tasks");
   }
-  for (const name of ["tasks", "plan", "archive"])
+  for (const name of ["tasks", "archive"])
     byId("show-" + name).addEventListener("click", () => selectView(name));
+  byId("create-sprint").addEventListener("click", () => openSprint(false));
+  byId("edit-sprint").addEventListener("click", () => openSprint(true));
+  byId("close-sprint").addEventListener("click", () => byId("sprint-dialog").close());
   byId("sprint-select").addEventListener("change", async () => {
     sprintId = byId("sprint-select").value;
     generation += 1;
@@ -920,7 +930,7 @@
     byId(id).addEventListener("click", () => perform(byId(id), action));
   byId("cancel-edit").addEventListener("click", () => {
     clearEditor();
-    updatePlan();
+    updateSprint();
   });
   byId("close-evidence").addEventListener("click", () => {
     byId("evidence-panel").hidden = true;
@@ -954,6 +964,9 @@
     generation += 1;
     clearSprint();
     await loadSprints(response.sprint.id);
+    byId("sprint-dialog").close();
+    byId("sprint-goal").value = "";
+    byId("sprint-assumptions").value = "";
     status("Sprint saved.");
     selectView("tasks");
   });
@@ -968,6 +981,7 @@
       "PATCH",
     );
     await loadSprints();
+    byId("sprint-dialog").close();
     status("Sprint settings saved.");
   });
   form("task", async (data) => {

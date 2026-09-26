@@ -356,6 +356,9 @@ describe("dashboard user flow", () => {
 
   it("creates and edits a sprint without a project entity", async () => {
     const client = await harness();
+    await client.click("create-sprint");
+    expect(client.get("sprint-dialog").open).toBe(true);
+    expect(client.get("sprint-settings").hidden).toBe(true);
     await client.submit("sprint", {
       goal: "Ship safely",
       startAt: "2026-09-24T10:00",
@@ -372,6 +375,10 @@ describe("dashboard user flow", () => {
     });
     expect(created?.body).not.toHaveProperty("projectId");
     expect(created?.body).not.toHaveProperty("reviewCadenceMinutes");
+    expect(client.get("sprint-dialog").open).toBe(false);
+    await client.click("edit-sprint");
+    expect(client.get("new-sprint").hidden).toBe(true);
+    expect(client.get("settings-goal").value).toBe(sprint.goal);
     await client.submit("settings", {
       goal: "Reduce scope",
       reviewCadenceMinutes: "30",
@@ -380,6 +387,23 @@ describe("dashboard user flow", () => {
     expect(
       client.requests.find((r) => r.path === "/api/sprints/sprint-1" && r.method === "PATCH")?.body,
     ).toMatchObject({ goal: "Reduce scope" });
+  });
+
+  it("keeps failed sprint edits open with an error and preserves drafts on close", async () => {
+    const client = await harness(({ method }) =>
+      method === "PATCH"
+        ? { responseStatus: 400, responseBody: { error: { code: "validation_error" } } }
+        : undefined,
+    );
+    await client.click("edit-sprint");
+    client.get("settings-goal").value = "Draft goal";
+    await client.submit("settings", { goal: "Draft goal", assumptions: "" });
+    expect(client.get("sprint-dialog").open).toBe(true);
+    expect(client.content("sprint-status")).toContain("Check the required fields");
+    await client.click("close-sprint");
+    expect(client.get("sprint-dialog").open).toBe(false);
+    await client.click("edit-sprint");
+    expect(client.get("settings-goal").value).toBe("Draft goal");
   });
 
   it("discovers only supplied roots and surfaces partial-scan issues", async () => {
@@ -540,6 +564,8 @@ describe("dashboard user flow", () => {
     const empty = await harness(({ path }) =>
       path === "/api/sprints" ? { sprints: [] } : undefined,
     );
+    expect(empty.get("sprint-dialog").open).toBe(true);
+    expect(empty.get("edit-sprint").disabled).toBe(true);
     expect(empty.get("sprint-fields").disabled).toBe(false);
     expect(empty.get("task-fields").disabled).toBe(true);
     const locked = await harness(undefined, "");
@@ -841,6 +867,12 @@ class Element {
   }
   setAttribute(key: string, value: string) {
     this.attributes[key] = value;
+  }
+  showModal() {
+    this.open = true;
+  }
+  close() {
+    this.open = false;
   }
   reset() {}
   focus() {}

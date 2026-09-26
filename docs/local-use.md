@@ -32,7 +32,7 @@ Enabling it permits queued and scheduled reviews to call the configured provider
 
 ## Use the dashboard
 
-1. Create a sprint in **Plan**, then add tasks with points, completion criteria, and optional prerequisites. Task dates default to the sprint window.
+1. Choose **New sprint**, then add tasks with points, completion criteria, and optional prerequisites. Task dates default to the sprint window.
 2. Approve a folder to discover repositories. **Capture metadata** saves local observations without authorizing an AI review.
 3. Choose repositories explicitly before a review. Checkboxes start unchecked; an empty selection means plan-only. **Review now** uses saved evidence, while **Resync** captures the selected repositories before queuing a review.
 4. Open a task's finding to inspect citations, uncertainty, and the next check. Correct or dismiss findings, answer saved questions to request a follow-up, and mark tasks done yourself.
